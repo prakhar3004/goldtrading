@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import pool from './db';
+import pool, { users } from './db';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'trading_platform_super_secret_jwt_key_10293847';
@@ -25,6 +25,11 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number; email: string; role: string };
+    const userObj = users.find(u => u.id === decoded.id);
+    if (userObj && userObj.is_banned) {
+      res.status(403).json({ error: 'Access denied. Account is banned.' });
+      return;
+    }
     req.user = decoded;
     next();
   } catch (error) {
@@ -34,9 +39,12 @@ export const authMiddleware = (req: AuthenticatedRequest, res: Response, next: N
 
 // Register Route
 router.post('/register', async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+  const { email, password, mobile } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
+  }
+  if (!mobile) {
+    return res.status(400).json({ error: 'Mobile number is required' });
   }
 
   const client = await pool.connect();
@@ -55,8 +63,8 @@ router.post('/register', async (req: Request, res: Response) => {
 
     // Insert user
     const userInsert = await client.query(
-      'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, \'USER\') RETURNING id, email, role',
-      [email, passwordHash]
+      "INSERT INTO users (email, password_hash, role, mobile) VALUES ($1, $2, 'USER', $3) RETURNING id, email, role, mobile",
+      [email, passwordHash, mobile]
     );
     const user = userInsert.rows[0];
 
@@ -100,6 +108,9 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const user = userRes.rows[0];
+    if (user.is_banned) {
+      return res.status(403).json({ error: 'This account has been banned by an administrator.' });
+    }
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password' });

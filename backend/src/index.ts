@@ -143,33 +143,82 @@ const fetchSwissquotePrice = async (instrument: 'XAU/USD' | 'XAG/USD'): Promise<
 };
 
 const fetchLivePrices = async () => {
-  // 1. Fetch Gold (XAU/USD)
-  const sqGold = await fetchSwissquotePrice('XAU/USD');
-  if (sqGold !== null) {
-    latestGoldLivePrice = sqGold;
-  } else {
-    // Fallback to Binance PAXGUSDT
+  let goldFetched: number | null = null;
+  let silverFetched: number | null = null;
+
+  // --- 1. Fetch Gold (XAU/USD) ---
+  // Try Swissquote
+  goldFetched = await fetchSwissquotePrice('XAU/USD');
+  if (goldFetched !== null) {
+    console.log(`[INFO] Fetched Gold price from Swissquote: $${goldFetched}`);
+  }
+  
+  // Try Binance PAXGUSDT if Swissquote failed
+  if (goldFetched === null) {
     try {
       const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT');
       if (response.ok) {
         const data = await response.json() as { price: string };
         const parsed = parseFloat(data.price);
         if (!isNaN(parsed) && parsed > 0) {
-          latestGoldLivePrice = parsed;
+          goldFetched = parsed;
+          console.log(`[INFO] Fetched Gold price from Binance fallback: $${goldFetched}`);
         }
       }
     } catch (error) {
-      console.error('[Binance API Error] Failed to fetch live gold price fallback:', error);
+      console.error('[Binance API Error] Failed to fetch live gold price:', error);
     }
   }
 
-  // 2. Fetch Silver (XAG/USD)
-  const sqSilver = await fetchSwissquotePrice('XAG/USD');
-  if (sqSilver !== null) {
-    latestSilverLivePrice = sqSilver;
+  // Try CoinGecko if both failed
+  if (goldFetched === null) {
+    try {
+      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=pax-gold&vs_currencies=usd');
+      if (response.ok) {
+        const data = await response.json() as { 'pax-gold': { usd: number } };
+        if (data?.['pax-gold']?.usd) {
+          goldFetched = data['pax-gold'].usd;
+          console.log(`[INFO] Fetched Gold price from CoinGecko fallback: $${goldFetched}`);
+        }
+      }
+    } catch (error) {
+      console.error('[CoinGecko API Error] Failed to fetch live gold price:', error);
+    }
+  }
+
+  if (goldFetched !== null) {
+    latestGoldLivePrice = goldFetched;
+  }
+
+  // --- 2. Fetch Silver (XAG/USD) ---
+  // Try Swissquote
+  silverFetched = await fetchSwissquotePrice('XAG/USD');
+  if (silverFetched !== null) {
+    console.log(`[INFO] Fetched Silver price from Swissquote: $${silverFetched}`);
+  }
+
+  // Try CoinGecko if Swissquote failed
+  if (silverFetched === null) {
+    try {
+      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=kinesis-silver&vs_currencies=usd');
+      if (response.ok) {
+        const data = await response.json() as { 'kinesis-silver': { usd: number } };
+        if (data?.['kinesis-silver']?.usd) {
+          silverFetched = data['kinesis-silver'].usd;
+          console.log(`[INFO] Fetched Silver price from CoinGecko fallback: $${silverFetched}`);
+        }
+      }
+    } catch (error) {
+      console.error('[CoinGecko API Error] Failed to fetch live silver price:', error);
+    }
+  }
+
+  if (silverFetched !== null) {
+    latestSilverLivePrice = silverFetched;
   } else {
-    // Fallback: derive from gold price using standard ratio (around 66.2)
-    latestSilverLivePrice = parseFloat((latestGoldLivePrice / 66.2).toFixed(2));
+    // Fallback: derive from gold price using standard ratio (around 66.14)
+    latestSilverLivePrice = parseFloat((latestGoldLivePrice / 66.14).toFixed(2));
+    console.log(`[INFO] Silver derived from Gold price ($${latestGoldLivePrice}) using ratio 66.14: $${latestSilverLivePrice}`);
   }
 };
 

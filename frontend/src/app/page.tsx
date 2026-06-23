@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { 
   TrendingUp, TrendingDown, DollarSign, Wallet, RefreshCw, X, Shield, 
-  Clock, Award, Activity, BarChart2, CheckCircle2, AlertTriangle, HelpCircle, ArrowRight
+  Clock, Award, Activity, BarChart2, CheckCircle2, AlertTriangle, HelpCircle, ArrowRight,
+  Info
 } from 'lucide-react';
 
 // Types matching backend models
@@ -50,10 +51,33 @@ export default function TradingDashboard() {
   // Authentication State
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<{ id: number; email: string; role: string } | null>(null);
-  const [authEmail, setAuthEmail] = useState('buyer@trading.com');
-  const [authPassword, setAuthPassword] = useState('password123');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
+
+  // Toast notifications state
+  interface Toast {
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info' | 'win' | 'loss';
+  }
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const addToast = (message: string, type: Toast['type'] = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // App Core State
   const [commodities, setCommodities] = useState<Commodity[]>([]);
@@ -352,6 +376,16 @@ export default function TradingDashboard() {
       endRate: number;
     }) => {
       loadUserData();
+      
+      // Trigger Toast notification
+      if (data.status === 'WON') {
+        addToast(`Congratulations! You WON the ${data.itemName} bet! +$${parseFloat(data.profit.toString()).toFixed(2)}`, 'win');
+      } else if (data.status === 'LOST') {
+        addToast(`Prediction resolved. You LOST the ${data.itemName} bet of $${parseFloat(data.amount.toString()).toFixed(2)}.`, 'loss');
+      } else if (data.status === 'DRAW') {
+        addToast(`Prediction resolved as DRAW for ${data.itemName}. Bet amount refunded.`, 'info');
+      }
+
       // Display result modal
       setResolutionModal({
         show: true,
@@ -466,17 +500,22 @@ export default function TradingDashboard() {
     e.preventDefault();
     setAuthError(null);
     const endpoint = isRegistering ? 'register' : 'login';
+    
+    const payload = isRegistering 
+      ? { email: authEmail, password: authPassword, mobile: authPhone }
+      : { email: authEmail, password: authPassword };
 
     try {
       const res = await fetch(`${API_BASE}/auth/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail, password: authPassword }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
       if (!res.ok) {
         setAuthError(data.error || 'Authentication failed');
+        addToast(`Authentication failed: ${data.error || 'Unknown error'}`, 'error');
         return;
       }
 
@@ -485,9 +524,12 @@ export default function TradingDashboard() {
       setToken(data.token);
       setUser(data.user);
       
+      addToast(isRegistering ? 'Account registered successfully! Welcome!' : 'Logged in successfully!', 'success');
+      setAuthPhone('');
       socketRef.current?.emit('auth', data.user.id);
     } catch (err) {
       setAuthError('Network error connecting to API');
+      addToast('Network error connecting to API', 'error');
     }
   };
 
@@ -499,19 +541,20 @@ export default function TradingDashboard() {
     setWallet({ balance: 0, locked_balance: 0 });
     setPredictionsList([]);
     setTransactions([]);
+    addToast('Logged out successfully.', 'success');
   };
 
   // Place Prediction Bet Submission
   const handlePlacePrediction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token) {
-      alert('Please log in first.');
+      addToast('Please log in first.', 'warning');
       return;
     }
 
     const betVal = parseFloat(betAmount);
     if (isNaN(betVal) || betVal <= 0) {
-      alert('Enter a valid positive bet amount.');
+      addToast('Enter a valid positive bet amount.', 'warning');
       return;
     }
 
@@ -536,14 +579,16 @@ export default function TradingDashboard() {
 
       const data = await res.json();
       if (!res.ok) {
-        alert(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
         return;
       }
 
+      addToast(`Prediction bet of ${formatCurrency(betVal)} placed successfully!`, 'success');
       // Refresh local wallet and history data
       loadUserData();
     } catch (err) {
       console.error('Error placing prediction:', err);
+      addToast('Failed to place prediction bet.', 'error');
     }
   };
 
@@ -553,11 +598,11 @@ export default function TradingDashboard() {
     if (!token) return;
     const depAmountVal = parseFloat(depositAmount);
     if (isNaN(depAmountVal) || depAmountVal <= 0) {
-      alert('Please enter a valid deposit amount.');
+      addToast('Please enter a valid deposit amount.', 'warning');
       return;
     }
     if (!depositReference.trim()) {
-      alert('Please enter your transaction reference ID.');
+      addToast('Please enter your transaction reference ID.', 'warning');
       return;
     }
 
@@ -578,15 +623,16 @@ export default function TradingDashboard() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        addToast(data.message, 'success');
         setDepositModalOpen(false);
         setDepositReference('');
         loadUserData();
       } else {
-        alert(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
       console.error('Deposit request failed:', err);
+      addToast('Failed to submit deposit request.', 'error');
     }
   };
 
@@ -596,11 +642,11 @@ export default function TradingDashboard() {
     if (!token) return;
     const amountVal = parseFloat(withdrawAmount);
     if (isNaN(amountVal) || amountVal <= 0) {
-      alert('Please enter a valid withdrawal amount.');
+      addToast('Please enter a valid withdrawal amount.', 'warning');
       return;
     }
     if (!withdrawDetails.trim()) {
-      alert('Please enter destination account details.');
+      addToast('Please enter destination account details.', 'warning');
       return;
     }
 
@@ -626,15 +672,16 @@ export default function TradingDashboard() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        addToast(data.message, 'success');
         setWithdrawModalOpen(false);
         setWithdrawDetails('');
         loadUserData();
       } else {
-        alert(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
       console.error('Withdrawal request failed:', err);
+      addToast('Failed to submit withdrawal request.', 'error');
     }
   };
 
@@ -689,7 +736,7 @@ export default function TradingDashboard() {
             <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-white via-slate-100 to-yellow-400 bg-clip-text text-transparent animate-pulse">
               KuberKhajana
             </h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Real-time Gold & Silver Predictions</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Real-time Gold & Silver Predictions (Rates quoted per Troy Ounce / oz)</p>
           </div>
         </div>
 
@@ -799,6 +846,20 @@ export default function TradingDashboard() {
                   required
                 />
               </div>
+
+              {isRegistering && (
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Mobile Number</label>
+                  <input 
+                    type="tel" 
+                    value={authPhone}
+                    onChange={(e) => setAuthPhone(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-yellow-500 text-white placeholder-slate-700 transition-all font-semibold"
+                    placeholder="+91 99999 99999"
+                    required
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Password</label>
@@ -1760,6 +1821,51 @@ export default function TradingDashboard() {
           </div>
         </div>
       )}
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        {toasts.map((t) => {
+          let bgClass = 'bg-slate-900/90 border-slate-800 text-slate-100';
+          let borderClass = 'border-l-4 border-l-indigo-500';
+          let icon = <Info className="w-4 h-4 text-indigo-400" />;
+
+          if (t.type === 'success') {
+            borderClass = 'border-l-4 border-l-emerald-500';
+            icon = <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+          } else if (t.type === 'error') {
+            borderClass = 'border-l-4 border-l-red-500';
+            icon = <AlertTriangle className="w-4 h-4 text-red-400" />;
+          } else if (t.type === 'warning') {
+            borderClass = 'border-l-4 border-l-amber-500';
+            icon = <AlertTriangle className="w-4 h-4 text-amber-400" />;
+          } else if (t.type === 'win') {
+            bgClass = 'bg-gradient-to-r from-emerald-950/80 to-slate-900/90 border-emerald-900/40 text-emerald-100';
+            borderClass = 'border-l-4 border-l-yellow-500';
+            icon = <Award className="w-5 h-5 text-yellow-400 animate-bounce" />;
+          } else if (t.type === 'loss') {
+            bgClass = 'bg-gradient-to-r from-red-950/40 to-slate-900/90 border-red-900/30 text-slate-350';
+            borderClass = 'border-l-4 border-l-red-500';
+            icon = <X className="w-4 h-4 text-red-500" />;
+          }
+
+          return (
+            <div
+              key={t.id}
+              className={`flex items-start justify-between gap-3 p-4 rounded-xl border backdrop-blur-md shadow-2xl transition-all duration-300 transform translate-y-0 opacity-100 animate-slide-in pointer-events-auto ${bgClass} ${borderClass}`}
+            >
+              <div className="flex gap-2.5 items-start">
+                <div className="mt-0.5">{icon}</div>
+                <p className="text-xs font-bold leading-relaxed">{t.message}</p>
+              </div>
+              <button
+                onClick={() => removeToast(t.id)}
+                className="text-slate-500 hover:text-slate-300 p-0.5 hover:bg-slate-800/50 rounded cursor-pointer transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

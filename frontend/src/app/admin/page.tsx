@@ -5,7 +5,7 @@ import { io, Socket } from 'socket.io-client';
 import { 
   Shield, DollarSign, Activity, Users, Percent, Sliders, RefreshCw, 
   ArrowLeft, Flame, Lock, CheckCircle2, TrendingUp, TrendingDown, Clock,
-  X, CreditCard, Wallet, Landmark
+  X, CreditCard, Wallet, Landmark, Info, AlertTriangle, Award
 } from 'lucide-react';
 
 interface LiveBet {
@@ -45,6 +45,8 @@ interface UserManage {
   created_at: string;
   balance: string;
   locked_balance: string;
+  is_banned?: boolean;
+  mobile?: string;
 }
 
 interface DepositRequest {
@@ -78,6 +80,28 @@ export default function AdminDashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<{ id: number; email: string; role: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Toast notification state
+  interface Toast {
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info' | 'win' | 'loss';
+  }
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const addToast = (message: string, type: Toast['type'] = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { id, message, type }]);
+    
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Stats Metrics
   const [stats, setStats] = useState({
@@ -332,12 +356,15 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok) {
         setConfigMessage('Settings saved successfully!');
+        addToast('Settings saved successfully!', 'success');
         loadAdminData();
       } else {
         setConfigMessage(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
       setConfigMessage('Failed to connect to administrative API.');
+      addToast('Failed to save settings.', 'error');
     }
   };
 
@@ -355,10 +382,11 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         const msg = await res.json();
-        alert(msg.message);
+        addToast(msg.message, 'success');
       }
     } catch (err) {
       console.error('Nudge inject failed:', err);
+      addToast('Failed to nudge rate.', 'error');
     }
   };
 
@@ -376,14 +404,14 @@ export default function AdminDashboard() {
       });
       if (res.ok) {
         const data = await res.json();
-        alert(data.message);
+        addToast(data.message, 'success');
         loadAdminData(); // Refresh active bets list
       } else {
         const data = await res.json();
-        alert(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
-      alert('Failed to set outcome override.');
+      addToast('Failed to set outcome override.', 'error');
     }
   };
 
@@ -406,18 +434,66 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        setUserMsg(`Balance adjusted successfully! New balance: $${data.newBalance}`);
+        addToast(`Balance adjusted successfully! New balance: $${data.newBalance}`, 'success');
         setAdjustAmount('');
         loadUsers();
         setTimeout(() => {
           setSelectedUser(null);
-          setUserMsg(null);
         }, 1500);
       } else {
-        setUserMsg(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
-      setUserMsg('Failed to adjust balance.');
+      addToast('Failed to adjust balance.', 'error');
+    }
+  };
+
+  // Toggle Ban / Unban User Account
+  const handleToggleBan = async (userToToggle: UserManage) => {
+    if (!token) return;
+    const actionName = userToToggle.is_banned ? 'unban' : 'ban';
+    if (!confirm(`Are you sure you want to ${actionName} this user account (${userToToggle.email})?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userToToggle.id}/ban`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ banned: !userToToggle.is_banned })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast(data.message || `User account successfully ${userToToggle.is_banned ? 'unbanned' : 'banned'}.`, 'success');
+        loadUsers();
+      } else {
+        addToast(`Error: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      addToast('Failed to update ban status.', 'error');
+    }
+  };
+
+  // Permanently Delete User Account
+  const handleDeleteUser = async (userToDelete: UserManage) => {
+    if (!token) return;
+    if (!confirm(`WARNING: Are you sure you want to PERMANENTLY delete user ${userToDelete.email}? This will delete all predictions, transactions, and requests associated with this account. This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast(data.message || 'User account and associated data successfully deleted.', 'success');
+        loadUsers();
+      } else {
+        addToast(`Error: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      addToast('Failed to delete user.', 'error');
     }
   };
 
@@ -436,13 +512,13 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        addToast(data.message, 'success');
         loadDeposits();
       } else {
-        alert(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
-      alert('Failed to resolve deposit request.');
+      addToast('Failed to resolve deposit request.', 'error');
     }
   };
 
@@ -461,13 +537,13 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message);
+        addToast(data.message, 'success');
         loadWithdrawals();
       } else {
-        alert(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
-      alert('Failed to resolve withdrawal request.');
+      addToast('Failed to resolve withdrawal request.', 'error');
     }
   };
 
@@ -492,11 +568,14 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok) {
         setGatewayMsg('Payment gateway addresses updated successfully!');
+        addToast('Payment gateway addresses updated successfully!', 'success');
       } else {
         setGatewayMsg(`Error: ${data.error}`);
+        addToast(`Error: ${data.error}`, 'error');
       }
     } catch (err) {
       setGatewayMsg('Failed to update gateways configuration.');
+      addToast('Failed to update gateways configuration.', 'error');
     }
   };
 
@@ -1058,7 +1137,19 @@ export default function AdminDashboard() {
                       {usersList.map((u) => (
                         <tr key={u.id} className="border-b border-slate-950/40 hover:bg-slate-900/10 transition-colors font-semibold">
                           <td className="py-3.5 pl-2 text-slate-500">#{u.id}</td>
-                          <td className="py-3.5 text-white font-bold">{u.email}</td>
+                          <td className="py-3.5 text-white font-bold">
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <div>{u.email}</div>
+                                {u.mobile && <div className="text-[10px] text-slate-500 font-semibold mt-0.5">{u.mobile}</div>}
+                              </div>
+                              {u.is_banned && (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase bg-red-950 text-red-400 border border-red-900/30">
+                                  Banned
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-3.5">
                             <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
                               u.role === 'ADMIN' 
@@ -1078,18 +1169,40 @@ export default function AdminDashboard() {
                           </td>
                           <td className="py-3.5 text-slate-500 font-normal">{new Date(u.created_at).toLocaleDateString()}</td>
                           <td className="py-3.5 pr-2 text-right">
-                            {u.role !== 'TREASURY' && (
-                              <button
-                                onClick={() => {
-                                  setSelectedUser(u);
-                                  setAdjustAmount('');
-                                  setAdjustAction('ADD');
-                                }}
-                                className="px-3 py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-850 hover:border-indigo-900 text-indigo-400 font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all hover:text-indigo-300"
-                              >
-                                Adjust Balance
-                              </button>
-                            )}
+                            <div className="flex justify-end items-center gap-2">
+                              {u.role !== 'TREASURY' && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedUser(u);
+                                    setAdjustAmount('');
+                                    setAdjustAction('ADD');
+                                  }}
+                                  className="px-3 py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-850 hover:border-indigo-900 text-indigo-400 font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all hover:text-indigo-300"
+                                >
+                                  Adjust Balance
+                                </button>
+                              )}
+                              {u.role !== 'ADMIN' && u.role !== 'TREASURY' && (
+                                <>
+                                  <button
+                                    onClick={() => handleToggleBan(u)}
+                                    className={`px-3 py-1.5 border font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all ${
+                                      u.is_banned
+                                        ? 'bg-emerald-950/20 hover:bg-emerald-950 border-emerald-900/30 hover:border-emerald-800 text-emerald-400 hover:text-emerald-300'
+                                        : 'bg-amber-950/20 hover:bg-amber-950 border-amber-900/30 hover:border-amber-800 text-amber-500 hover:text-amber-400'
+                                    }`}
+                                  >
+                                    {u.is_banned ? 'Unban' : 'Ban'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(u)}
+                                    className="px-3 py-1.5 bg-red-950/20 hover:bg-red-950 border border-red-900/30 hover:border-red-800 text-red-400 hover:text-red-300 font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all"
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1463,6 +1576,51 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-5 right-5 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+        {toasts.map((t) => {
+          let bgClass = 'bg-slate-900/90 border-slate-800 text-slate-100';
+          let borderClass = 'border-l-4 border-l-indigo-500';
+          let icon = <Info className="w-4 h-4 text-indigo-400" />;
+
+          if (t.type === 'success') {
+            borderClass = 'border-l-4 border-l-emerald-500';
+            icon = <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
+          } else if (t.type === 'error') {
+            borderClass = 'border-l-4 border-l-red-500';
+            icon = <AlertTriangle className="w-4 h-4 text-red-400" />;
+          } else if (t.type === 'warning') {
+            borderClass = 'border-l-4 border-l-amber-500';
+            icon = <AlertTriangle className="w-4 h-4 text-amber-400" />;
+          } else if (t.type === 'win') {
+            bgClass = 'bg-gradient-to-r from-emerald-950/80 to-slate-900/90 border-emerald-900/40 text-emerald-100';
+            borderClass = 'border-l-4 border-l-yellow-500';
+            icon = <Award className="w-5 h-5 text-yellow-400 animate-bounce" />;
+          } else if (t.type === 'loss') {
+            bgClass = 'bg-gradient-to-r from-red-950/40 to-slate-900/90 border-red-900/30 text-slate-350';
+            borderClass = 'border-l-4 border-l-red-500';
+            icon = <X className="w-4 h-4 text-red-500" />;
+          }
+
+          return (
+            <div
+              key={t.id}
+              className={`flex items-start justify-between gap-3 p-4 rounded-xl border backdrop-blur-md shadow-2xl transition-all duration-300 transform translate-y-0 opacity-100 animate-slide-in pointer-events-auto ${bgClass} ${borderClass}`}
+            >
+              <div className="flex gap-2.5 items-start">
+                <div className="mt-0.5">{icon}</div>
+                <p className="text-xs font-bold leading-relaxed">{t.message}</p>
+              </div>
+              <button
+                onClick={() => removeToast(t.id)}
+                className="text-slate-500 hover:text-slate-300 p-0.5 hover:bg-slate-800/50 rounded cursor-pointer transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

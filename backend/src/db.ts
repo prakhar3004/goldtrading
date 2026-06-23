@@ -10,6 +10,8 @@ export interface UserRow {
   password_hash: string;
   role: 'USER' | 'ADMIN' | 'TREASURY';
   created_at: Date;
+  is_banned: boolean;
+  mobile?: string;
 }
 
 export interface WalletRow {
@@ -152,22 +154,12 @@ const initializeMockData = () => {
 
   // 1. Seed System Roles
   // Treasury (ID 1): Collects fees or platform balances
-  users.push({ id: 1, email: 'treasury@trading.com', password_hash: passwordHash, role: 'TREASURY', created_at: new Date() });
+  users.push({ id: 1, email: 'treasury@trading.com', password_hash: passwordHash, role: 'TREASURY', created_at: new Date(), is_banned: false, mobile: 'System' });
   wallets.push({ id: 1, user_id: 1, balance: 100000.00, locked_balance: 0.00 });
 
-  // Standard Demo User (ID 2)
-  users.push({ id: 2, email: 'buyer@trading.com', password_hash: passwordHash, role: 'USER', created_at: new Date() });
-  wallets.push({ id: 2, user_id: 2, balance: 50.00, locked_balance: 0.00 });
-  transactions.push({ id: 'init-1', wallet_id: 2, type: 'DEPOSIT', amount: 50.00, reference_id: 'INITIAL_SIGNUP_BONUS', created_at: new Date() });
-
-  // Standard Demo User (ID 3)
-  users.push({ id: 3, email: 'seller@trading.com', password_hash: passwordHash, role: 'USER', created_at: new Date() });
-  wallets.push({ id: 3, user_id: 3, balance: 50.00, locked_balance: 0.00 });
-  transactions.push({ id: 'init-2', wallet_id: 3, type: 'DEPOSIT', amount: 50.00, reference_id: 'INITIAL_SIGNUP_BONUS', created_at: new Date() });
-
-  // Admin User (ID 4)
-  users.push({ id: 4, email: 'admin@trading.com', password_hash: passwordHash, role: 'ADMIN', created_at: new Date() });
-  wallets.push({ id: 4, user_id: 4, balance: 0.00, locked_balance: 0.00 });
+  // Admin User (ID 2)
+  users.push({ id: 2, email: 'admin@trading.com', password_hash: passwordHash, role: 'ADMIN', created_at: new Date(), is_banned: false, mobile: 'System' });
+  wallets.push({ id: 2, user_id: 2, balance: 0.00, locked_balance: 0.00 });
 
   // 2. Seed Gold and Silver items
   // Gold (ID 1)
@@ -329,10 +321,11 @@ export const query = async (text: string, params?: any[]): Promise<{ rows: any[]
   }
 
   // Register
-  if (cleanSql.startsWith("INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'USER')")) {
+  if (cleanSql.startsWith("INSERT INTO users (email, password_hash, role, mobile) VALUES ($1, $2, 'USER', $3)")) {
     const email = params?.[0];
     const hash = params?.[1];
-    const newUser: UserRow = { id: users.length + 1, email, password_hash: hash, role: 'USER', created_at: new Date() };
+    const mobile = params?.[2];
+    const newUser: UserRow = { id: users.length + 1, email, password_hash: hash, role: 'USER', created_at: new Date(), is_banned: false, mobile };
     users.push(newUser);
     return { rows: [newUser] };
   }
@@ -631,6 +624,8 @@ export const query = async (text: string, params?: any[]): Promise<{ rows: any[]
         email: u.email,
         role: u.role,
         created_at: u.created_at,
+        is_banned: u.is_banned,
+        mobile: u.mobile,
         balance: w.balance.toString(),
         locked_balance: w.locked_balance.toString()
       };

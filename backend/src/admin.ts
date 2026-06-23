@@ -7,7 +7,8 @@ import pool, {
   depositRequests,
   withdrawalRequests,
   adminGateways,
-  exchangeRates
+  exchangeRates,
+  wallets
 } from './db';
 import { authMiddleware, AuthenticatedRequest } from './auth';
 
@@ -411,6 +412,90 @@ router.post('/predictions/:id/override', authMiddleware, adminMiddleware, async 
   } catch (error) {
     console.error('Bet override failed:', error);
     return res.status(500).json({ error: 'Failed to set override' });
+  }
+});
+
+// 16. Ban / Unban User Account
+router.post('/users/:id/ban', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const userId = parseInt(req.params.id);
+  const { banned } = req.body; // boolean
+
+  if (isNaN(userId)) return res.status(400).json({ error: 'Invalid User ID' });
+  if (typeof banned !== 'boolean') return res.status(400).json({ error: 'Invalid parameters' });
+
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role === 'ADMIN' || user.role === 'TREASURY') {
+    return res.status(400).json({ error: 'Cannot ban administrative or system accounts.' });
+  }
+
+  user.is_banned = banned;
+  return res.json({ message: `User account has been successfully ${banned ? 'banned' : 'unbanned'}.`, user });
+});
+
+// 17. Delete User Account and Associated Data
+router.delete('/users/:id', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
+  const userId = parseInt(req.params.id);
+  if (isNaN(userId)) return res.status(400).json({ error: 'Invalid User ID' });
+
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) return res.status(404).json({ error: 'User not found' });
+  
+  const user = users[userIndex];
+  if (user.role === 'ADMIN' || user.role === 'TREASURY') {
+    return res.status(400).json({ error: 'Cannot delete administrative or system accounts.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Delete predictions from database and in-memory lists
+    await client.query('DELETE FROM predictions WHERE user_id = $1', [userId]);
+    for (let i = predictions.length - 1; i >= 0; i--) {
+      if (predictions[i].user_id === userId) {
+        predictions.splice(i, 1);
+      }
+    }
+
+    // 2. Delete deposit and withdrawal requests
+    await client.query('DELETE FROM deposit_requests WHERE user_id = $1', [userId]);
+    for (let i = depositRequests.length - 1; i >= 0; i--) {
+      if (depositRequests[i].user_id === userId) {
+        depositRequests.splice(i, 1);
+      }
+    }
+    await client.query('DELETE FROM withdrawal_requests WHERE user_id = $1', [userId]);
+    for (let i = withdrawalRequests.length - 1; i >= 0; i--) {
+      if (withdrawalRequests[i].user_id === userId) {
+        withdrawalRequests.splice(i, 1);
+      }
+    }
+
+    // 3. Delete transactions (associated with wallet)
+    const walletRes = await client.query('SELECT id FROM wallets WHERE user_id = $1', [userId]);
+    if (walletRes.rows.length > 0) {
+      const walletId = walletRes.rows[0].id;
+      await client.query('DELETE FROM transactions WHERE wallet_id = $1', [walletId]);
+    }
+
+    // 4. Delete wallet
+    await client.query('DELETE FROM wallets WHERE user_id = $1', [userId]);
+    const walletIndex = wallets.findIndex(w => w.user_id === userId);
+    if (walletIndex !== -1) wallets.splice(walletIndex, 1);
+
+    // 5. Delete user
+    await client.query('DELETE FROM users WHERE id = $1', [userId]);
+    users.splice(userIndex, 1);
+
+    await client.query('COMMIT');
+    return res.json({ message: 'User account and all associated prediction ledgers have been permanently deleted.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Delete user failed:', error);
+    return res.status(500).json({ error: 'Internal server error during account deletion.' });
+  } finally {
+    client.release();
   }
 });
 
