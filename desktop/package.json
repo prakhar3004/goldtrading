@@ -1,0 +1,12 @@
+{
+  "name": "kuber-khajana-desktop",
+  "version": "1.0.0",
+  "description": "KuberKhajana Gold & Silver prediction trading platform desktop application wrapper.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^30.0.0"
+  }
+}
