@@ -8,7 +8,9 @@ import pool, {
   withdrawalRequests,
   adminGateways,
   exchangeRates,
-  wallets
+  wallets,
+  transactions,
+  TransactionRow
 } from './db';
 import { authMiddleware, AuthenticatedRequest } from './auth';
 
@@ -145,7 +147,11 @@ router.post('/config', authMiddleware, adminMiddleware, async (req: Request, res
     goldPriceOffset,
     silverPriceType,
     silverManualPrice,
-    silverPriceOffset
+    silverPriceOffset,
+    minBetAmount,
+    maxBetAmount,
+    minDepositAmount,
+    minWithdrawalAmount
   } = req.body;
 
   if (goldTrend && !['UP', 'DOWN', 'NEUTRAL'].includes(goldTrend)) {
@@ -173,7 +179,7 @@ router.post('/config', authMiddleware, adminMiddleware, async (req: Request, res
 
   try {
     await pool.query(
-      'UPDATE admin_config SET gold_trend = $1, silver_trend = $2, payout_rate = $3, house_protection_win_rate = $4, gold_price_type = $5, gold_manual_price = $6, gold_price_offset = $7, silver_price_type = $8, silver_manual_price = $9, silver_price_offset = $10',
+      'UPDATE admin_config SET gold_trend = $1, silver_trend = $2, payout_rate = $3, house_protection_win_rate = $4, gold_price_type = $5, gold_manual_price = $6, gold_price_offset = $7, silver_price_type = $8, silver_manual_price = $9, silver_price_offset = $10, min_bet_amount = $11, max_bet_amount = $12, min_deposit_amount = $13, min_withdrawal_amount = $14',
       [
         goldTrend || adminConfig.gold_trend,
         silverTrend || adminConfig.silver_trend,
@@ -184,7 +190,11 @@ router.post('/config', authMiddleware, adminMiddleware, async (req: Request, res
         !isNaN(parseFloat(goldPriceOffset)) ? parseFloat(goldPriceOffset) : adminConfig.gold_price_offset,
         silverPriceType || adminConfig.silver_price_type,
         !isNaN(parseFloat(silverManualPrice)) ? parseFloat(silverManualPrice) : adminConfig.silver_manual_price,
-        !isNaN(parseFloat(silverPriceOffset)) ? parseFloat(silverPriceOffset) : adminConfig.silver_price_offset
+        !isNaN(parseFloat(silverPriceOffset)) ? parseFloat(silverPriceOffset) : adminConfig.silver_price_offset,
+        !isNaN(parseFloat(minBetAmount)) ? parseFloat(minBetAmount) : adminConfig.min_bet_amount,
+        !isNaN(parseFloat(maxBetAmount)) ? parseFloat(maxBetAmount) : adminConfig.max_bet_amount,
+        !isNaN(parseFloat(minDepositAmount)) ? parseFloat(minDepositAmount) : adminConfig.min_deposit_amount,
+        !isNaN(parseFloat(minWithdrawalAmount)) ? parseFloat(minWithdrawalAmount) : adminConfig.min_withdrawal_amount
       ]
     );
 
@@ -500,6 +510,13 @@ router.delete('/users/:id', authMiddleware, adminMiddleware, async (req: Request
     if (walletRes.rows.length > 0) {
       const walletId = walletRes.rows[0].id;
       await client.query('DELETE FROM transactions WHERE wallet_id = $1', [walletId]);
+      
+      // Clean up in-memory transactions array
+      for (let i = transactions.length - 1; i >= 0; i--) {
+        if (transactions[i].wallet_id === walletId) {
+          transactions.splice(i, 1);
+        }
+      }
     }
 
     // 4. Delete wallet
@@ -519,6 +536,29 @@ router.delete('/users/:id', authMiddleware, adminMiddleware, async (req: Request
     return res.status(500).json({ error: 'Internal server error during account deletion.' });
   } finally {
     client.release();
+  }
+});
+
+// 18. Get All Transactions for Admin Audit (In-memory direct lookup)
+router.get('/transactions', authMiddleware, adminMiddleware, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const list = transactions.map((t: TransactionRow) => {
+      const wallet = wallets.find(w => w.id === t.wallet_id);
+      const user = wallet ? users.find(u => u.id === wallet.user_id) : null;
+      return {
+        id: t.id,
+        wallet_id: t.wallet_id,
+        user_id: wallet ? wallet.user_id : null,
+        user_email: user ? user.email : '',
+        type: t.type,
+        amount: t.amount,
+        reference_id: t.reference_id,
+        created_at: t.created_at
+      };
+    }).sort((a: any, b: any) => b.created_at.getTime() - a.created_at.getTime());
+    return res.json(list);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to retrieve transaction ledgers' });
   }
 });
 

@@ -15,23 +15,11 @@ class MainActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
-    // Clear cookies to ensure fresh state
-    val cookieManager = CookieManager.getInstance()
-    cookieManager.removeAllCookies(null)
-    cookieManager.flush()
-
-    // Clear WebStorage (localStorage, databases, etc.)
-    WebStorage.getInstance().deleteAllData()
-
     webView = WebView(this).apply {
-      // Clear cache on startup
-      clearCache(true)
-
       settings.javaScriptEnabled = true
       settings.domStorageEnabled = true
       settings.useWideViewPort = true
       settings.loadWithOverviewMode = true
-      settings.cacheMode = WebSettings.LOAD_NO_CACHE
       
       webViewClient = object : WebViewClient() {
         @Deprecated("Deprecated in Java")
@@ -53,7 +41,11 @@ class MainActivity : Activity() {
 
   @Deprecated("Deprecated in Java")
   override fun onBackPressed() {
-    if (::webView.isInitialized && webView.canGoBack()) {
+    val currentUrl = if (::webView.isInitialized) webView.url else null
+    val isHomePage = currentUrl == null || !currentUrl.contains("/admin")
+    if (isHomePage) {
+      super.onBackPressed()
+    } else if (::webView.isInitialized && webView.canGoBack()) {
       webView.goBack()
     } else {
       super.onBackPressed()

@@ -82,6 +82,10 @@ export interface AdminConfig {
   silver_price_type: 'LIVE' | 'MANUAL';
   silver_manual_price: number;
   silver_price_offset: number;
+  min_bet_amount: number;
+  max_bet_amount: number;
+  min_deposit_amount: number;
+  min_withdrawal_amount: number;
 }
 
 export interface AdminGateway {
@@ -152,6 +156,10 @@ export const adminConfig: AdminConfig = {
   silver_price_type: 'LIVE',
   silver_manual_price: 30.00,
   silver_price_offset: 0.00,
+  min_bet_amount: 1.00,
+  max_bet_amount: 10000.00,
+  min_deposit_amount: 5.00,
+  min_withdrawal_amount: 10.00,
 };
 
 // Global Nudges for manual trend controls (avoids circular dependency)
@@ -754,7 +762,22 @@ export const query = async (text: string, params?: any[]): Promise<{ rows: any[]
 
   // Update admin configs (simulated)
   if (cleanSql.startsWith('UPDATE admin_config')) {
-    if (params && params.length >= 10) {
+    if (params && params.length >= 14) {
+      adminConfig.gold_trend = params[0];
+      adminConfig.silver_trend = params[1];
+      adminConfig.payout_rate = parseFloat(params[2]);
+      adminConfig.house_protection_win_rate = parseFloat(params[3]);
+      adminConfig.gold_price_type = params[4];
+      adminConfig.gold_manual_price = parseFloat(params[5]);
+      adminConfig.gold_price_offset = parseFloat(params[6]);
+      adminConfig.silver_price_type = params[7];
+      adminConfig.silver_manual_price = parseFloat(params[8]);
+      adminConfig.silver_price_offset = parseFloat(params[9]);
+      adminConfig.min_bet_amount = parseFloat(params[10]);
+      adminConfig.max_bet_amount = parseFloat(params[11]);
+      adminConfig.min_deposit_amount = parseFloat(params[12]);
+      adminConfig.min_withdrawal_amount = parseFloat(params[13]);
+    } else if (params && params.length >= 10) {
       adminConfig.gold_trend = params[0];
       adminConfig.silver_trend = params[1];
       adminConfig.payout_rate = parseFloat(params[2]);

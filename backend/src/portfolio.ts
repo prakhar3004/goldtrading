@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import pool, { predictions, adminGateways, exchangeRates } from './db';
+import pool, { predictions, adminGateways, exchangeRates, adminConfig } from './db';
 import { authMiddleware, AuthenticatedRequest } from './auth';
 
 const router = Router();
@@ -136,6 +136,12 @@ router.post('/deposit-request', authMiddleware, async (req: AuthenticatedRequest
   if (isNaN(depAmount) || depAmount <= 0) {
     return res.status(400).json({ error: 'Invalid deposit amount' });
   }
+  const rate = exchangeRates[currency] || 1.0;
+  const usdAmount = depAmount / rate;
+  const minDep = adminConfig.min_deposit_amount || 5.00;
+  if (usdAmount < minDep) {
+    return res.status(400).json({ error: `Minimum deposit amount is $${minDep.toFixed(2)} USD.` });
+  }
 
   try {
     const requestId = `dep-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -160,6 +166,10 @@ router.post('/withdraw-request', authMiddleware, async (req: AuthenticatedReques
   const usdAmount = parseFloat(amountInUsd);
   if (isNaN(witAmount) || witAmount <= 0 || isNaN(usdAmount) || usdAmount <= 0) {
     return res.status(400).json({ error: 'Invalid withdrawal amount' });
+  }
+  const minWith = adminConfig.min_withdrawal_amount || 10.00;
+  if (usdAmount < minWith) {
+    return res.status(400).json({ error: `Minimum withdrawal amount is $${minWith.toFixed(2)} USD.` });
   }
 
   const client = await pool.connect();

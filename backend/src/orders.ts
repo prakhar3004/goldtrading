@@ -44,6 +44,14 @@ router.post('/place', authMiddleware, async (req: AuthenticatedRequest, res: Res
   if (isNaN(betAmount) || betAmount <= 0) {
     return res.status(400).json({ error: 'Bet amount must be a positive number.' });
   }
+  const minBet = adminConfig.min_bet_amount || 1.00;
+  const maxBet = adminConfig.max_bet_amount || 10000.00;
+  if (betAmount < minBet) {
+    return res.status(400).json({ error: `Bet amount must be at least $${minBet.toFixed(2)}.` });
+  }
+  if (betAmount > maxBet) {
+    return res.status(400).json({ error: `Bet amount cannot exceed $${maxBet.toFixed(2)}.` });
+  }
   if (isNaN(expiryDuration) || ![30, 60, 120, 300].includes(expiryDuration)) {
     return res.status(400).json({ error: 'Invalid duration. Select 30s, 1m, 2m, or 5m.' });
   }

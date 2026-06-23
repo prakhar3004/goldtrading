@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { 
@@ -127,6 +129,7 @@ export default function AdminDashboard() {
   const [payoutRate, setPayoutRate] = useState('0.85');
   const [houseProtection, setHouseProtection] = useState('0.45');
   const [configMessage, setConfigMessage] = useState<string | null>(null);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   // Price Manipulation States
   const [goldPriceType, setGoldPriceType] = useState<'LIVE' | 'MANUAL'>('LIVE');
@@ -135,13 +138,22 @@ export default function AdminDashboard() {
   const [silverPriceType, setSilverPriceType] = useState<'LIVE' | 'MANUAL'>('LIVE');
   const [silverManualPrice, setSilverManualPrice] = useState('30.00');
   const [silverPriceOffset, setSilverPriceOffset] = useState('0.00');
+  const [liveGoldPrice, setLiveGoldPrice] = useState<number>(2400.00);
+  const [liveSilverPrice, setLiveSilverPrice] = useState<number>(30.00);
+
+
+  // Platform Limits
+  const [minBetAmount, setMinBetAmount] = useState('1.00');
+  const [maxBetAmount, setMaxBetAmount] = useState('10000.00');
+  const [minDepositAmount, setMinDepositAmount] = useState('5.00');
+  const [minWithdrawalAmount, setMinWithdrawalAmount] = useState('10.00');
 
   // Bets tracking state
   const [activeBets, setActiveBets] = useState<LiveBet[]>([]);
   const [betLogs, setBetLogs] = useState<ResolvedBet[]>([]);
 
   // Main navigation tab
-  const [activeTab, setActiveTab] = useState<'telemetry' | 'users' | 'deposits' | 'withdrawals' | 'gateways'>('telemetry');
+  const [activeTab, setActiveTab] = useState<'telemetry' | 'users' | 'deposits' | 'withdrawals' | 'gateways' | 'transactions'>('telemetry');
   
   // Tab states - Users
   const [usersList, setUsersList] = useState<UserManage[]>([]);
@@ -156,6 +168,10 @@ export default function AdminDashboard() {
   const [loadingDeposits, setLoadingDeposits] = useState(false);
   const [withdrawalsList, setWithdrawalsList] = useState<WithdrawalRequest[]>([]);
   const [loadingWithdrawals, setLoadingWithdrawals] = useState(false);
+
+  // Tab states - Transactions Audit Ledger
+  const [transactionsList, setTransactionsList] = useState<any[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
 
   // Tab states - Gateways
   const [upiId, setUpiId] = useState('pay@kuberkhajana');
@@ -211,6 +227,10 @@ export default function AdminDashboard() {
         setSilverPriceType(configData.silver_price_type || 'LIVE');
         setSilverManualPrice((configData.silver_manual_price ?? 30.00).toString());
         setSilverPriceOffset((configData.silver_price_offset ?? 0.00).toString());
+        setMinBetAmount((configData.min_bet_amount ?? 1.00).toString());
+        setMaxBetAmount((configData.max_bet_amount ?? 10000.00).toString());
+        setMinDepositAmount((configData.min_deposit_amount ?? 5.00).toString());
+        setMinWithdrawalAmount((configData.min_withdrawal_amount ?? 10.00).toString());
       }
 
       // 3. Get Live bets
@@ -308,6 +328,24 @@ export default function AdminDashboard() {
     }
   };
 
+  const loadTransactions = async () => {
+    if (!token) return;
+    setLoadingTransactions(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/transactions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTransactionsList(data);
+      }
+    } catch (err) {
+      console.error('Failed to load transactions:', err);
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
   // Tab switching side effects
   useEffect(() => {
     if (!isAdmin) return;
@@ -321,8 +359,18 @@ export default function AdminDashboard() {
       loadWithdrawals();
     } else if (activeTab === 'gateways') {
       loadGateways();
+    } else if (activeTab === 'transactions') {
+      loadTransactions();
     }
   }, [activeTab, isAdmin]);
+
+  // Load data for selected user inspection
+  useEffect(() => {
+    if (selectedUser && token) {
+      loadTransactions();
+      loadAdminData();
+    }
+  }, [selectedUser, token]);
 
   // Setup WebSocket connection for live dashboard telemetry
   useEffect(() => {
@@ -349,6 +397,16 @@ export default function AdminDashboard() {
       }
     });
 
+    // Listen for live gold and silver price ticks
+    socketRef.current.on('tick', (data: { itemId: number; price: number }) => {
+      if (data.itemId === 1) {
+        setLiveGoldPrice(data.price);
+      } else if (data.itemId === 2) {
+        setLiveSilverPrice(data.price);
+      }
+    });
+
+
     return () => {
       socketRef.current?.disconnect();
     };
@@ -359,6 +417,7 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!token) return;
     setConfigMessage(null);
+    setSavingConfig(true);
 
     try {
       const res = await fetch(`${API_BASE}/admin/config`, {
@@ -377,7 +436,11 @@ export default function AdminDashboard() {
           goldPriceOffset: parseFloat(goldPriceOffset),
           silverPriceType,
           silverManualPrice: parseFloat(silverManualPrice),
-          silverPriceOffset: parseFloat(silverPriceOffset)
+          silverPriceOffset: parseFloat(silverPriceOffset),
+          minBetAmount: parseFloat(minBetAmount),
+          maxBetAmount: parseFloat(maxBetAmount),
+          minDepositAmount: parseFloat(minDepositAmount),
+          minWithdrawalAmount: parseFloat(minWithdrawalAmount)
         })
       });
 
@@ -393,8 +456,97 @@ export default function AdminDashboard() {
     } catch (err) {
       setConfigMessage('Failed to connect to administrative API.');
       addToast('Failed to save settings.', 'error');
+    } finally {
+      setSavingConfig(false);
     }
   };
+
+  // Helper to dynamically update a specific field and synchronize with backend config
+  const updateConfigField = async (updates: {
+    goldTrend?: 'UP' | 'DOWN' | 'NEUTRAL';
+    silverTrend?: 'UP' | 'DOWN' | 'NEUTRAL';
+    payoutRate?: string;
+    houseProtection?: string;
+    goldPriceType?: 'LIVE' | 'MANUAL';
+    goldManualPrice?: string;
+    goldPriceOffset?: string;
+    silverPriceType?: 'LIVE' | 'MANUAL';
+    silverManualPrice?: string;
+    silverPriceOffset?: string;
+    minBetAmount?: string;
+    maxBetAmount?: string;
+    minDepositAmount?: string;
+    minWithdrawalAmount?: string;
+  }) => {
+    if (!token) return;
+
+    let nextGoldTrend = updates.goldTrend !== undefined ? updates.goldTrend : goldTrend;
+    let nextSilverTrend = updates.silverTrend !== undefined ? updates.silverTrend : silverTrend;
+    let nextPayoutRate = updates.payoutRate !== undefined ? updates.payoutRate : payoutRate;
+    let nextHouseProtection = updates.houseProtection !== undefined ? updates.houseProtection : houseProtection;
+    let nextGoldPriceType = updates.goldPriceType !== undefined ? updates.goldPriceType : goldPriceType;
+    let nextGoldManualPrice = updates.goldManualPrice !== undefined ? updates.goldManualPrice : goldManualPrice;
+    let nextGoldPriceOffset = updates.goldPriceOffset !== undefined ? updates.goldPriceOffset : goldPriceOffset;
+    let nextSilverPriceType = updates.silverPriceType !== undefined ? updates.silverPriceType : silverPriceType;
+    let nextSilverManualPrice = updates.silverManualPrice !== undefined ? updates.silverManualPrice : silverManualPrice;
+    let nextSilverPriceOffset = updates.silverPriceOffset !== undefined ? updates.silverPriceOffset : silverPriceOffset;
+    let nextMinBetAmount = updates.minBetAmount !== undefined ? updates.minBetAmount : minBetAmount;
+    let nextMaxBetAmount = updates.maxBetAmount !== undefined ? updates.maxBetAmount : maxBetAmount;
+    let nextMinDepositAmount = updates.minDepositAmount !== undefined ? updates.minDepositAmount : minDepositAmount;
+    let nextMinWithdrawalAmount = updates.minWithdrawalAmount !== undefined ? updates.minWithdrawalAmount : minWithdrawalAmount;
+
+    // Apply state updates locally first
+    if (updates.goldTrend !== undefined) setGoldTrend(updates.goldTrend);
+    if (updates.silverTrend !== undefined) setSilverTrend(updates.silverTrend);
+    if (updates.payoutRate !== undefined) setPayoutRate(updates.payoutRate);
+    if (updates.houseProtection !== undefined) setHouseProtection(updates.houseProtection);
+    if (updates.goldPriceType !== undefined) setGoldPriceType(updates.goldPriceType);
+    if (updates.goldManualPrice !== undefined) setGoldManualPrice(updates.goldManualPrice);
+    if (updates.goldPriceOffset !== undefined) setGoldPriceOffset(updates.goldPriceOffset);
+    if (updates.silverPriceType !== undefined) setSilverPriceType(updates.silverPriceType);
+    if (updates.silverManualPrice !== undefined) setSilverManualPrice(updates.silverManualPrice);
+    if (updates.silverPriceOffset !== undefined) setSilverPriceOffset(updates.silverPriceOffset);
+    if (updates.minBetAmount !== undefined) setMinBetAmount(updates.minBetAmount);
+    if (updates.maxBetAmount !== undefined) setMaxBetAmount(updates.maxBetAmount);
+    if (updates.minDepositAmount !== undefined) setMinDepositAmount(updates.minDepositAmount);
+    if (updates.minWithdrawalAmount !== undefined) setMinWithdrawalAmount(updates.minWithdrawalAmount);
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          goldTrend: nextGoldTrend,
+          silverTrend: nextSilverTrend,
+          payoutRate: parseFloat(nextPayoutRate),
+          houseProtectionWinRate: parseFloat(nextHouseProtection),
+          goldPriceType: nextGoldPriceType,
+          goldManualPrice: parseFloat(nextGoldManualPrice),
+          goldPriceOffset: parseFloat(nextGoldPriceOffset),
+          silverPriceType: nextSilverPriceType,
+          silverManualPrice: parseFloat(nextSilverManualPrice),
+          silverPriceOffset: parseFloat(nextSilverPriceOffset),
+          minBetAmount: parseFloat(nextMinBetAmount),
+          maxBetAmount: parseFloat(updates.maxBetAmount !== undefined ? updates.maxBetAmount : maxBetAmount),
+          minDepositAmount: parseFloat(nextMinDepositAmount),
+          minWithdrawalAmount: parseFloat(nextMinWithdrawalAmount)
+        })
+      });
+
+      if (res.ok) {
+        addToast('Settings auto-applied to rate engine.', 'success');
+      } else {
+        const data = await res.json();
+        addToast(`Error: ${data.error}`, 'error');
+      }
+    } catch (err) {
+      addToast('Failed to apply configuration.', 'error');
+    }
+  };
+
 
   // Handle manual rate nudges (Spikes/Dips)
   const handleForceNudge = async (itemId: number, amount: number) => {
@@ -464,10 +616,8 @@ export default function AdminDashboard() {
       if (res.ok) {
         addToast(`Balance adjusted successfully! New balance: $${data.newBalance}`, 'success');
         setAdjustAmount('');
+        setSelectedUser(prev => prev ? { ...prev, balance: data.newBalance.toString() } : null);
         loadUsers();
-        setTimeout(() => {
-          setSelectedUser(null);
-        }, 1500);
       } else {
         addToast(`Error: ${data.error}`, 'error');
       }
@@ -497,6 +647,7 @@ export default function AdminDashboard() {
           const data = await res.json();
           if (res.ok) {
             addToast(data.message || `User account successfully ${userToToggle.is_banned ? 'unbanned' : 'banned'}.`, 'success');
+            setSelectedUser(prev => prev ? { ...prev, is_banned: !userToToggle.is_banned } : null);
             loadUsers();
           } else {
             addToast(`Error: ${data.error}`, 'error');
@@ -526,6 +677,7 @@ export default function AdminDashboard() {
           const data = await res.json();
           if (res.ok) {
             addToast(data.message || 'User account and associated data successfully deleted.', 'success');
+            setSelectedUser(null);
             loadUsers();
           } else {
             addToast(`Error: ${data.error}`, 'error');
@@ -536,6 +688,7 @@ export default function AdminDashboard() {
       }
     });
   };
+
 
   // Resolve Deposit Request
   const handleResolveDeposit = async (id: string, action: 'APPROVE' | 'REJECT') => {
@@ -704,6 +857,7 @@ export default function AdminDashboard() {
               else if (activeTab === 'deposits') loadDeposits();
               else if (activeTab === 'withdrawals') loadWithdrawals();
               else if (activeTab === 'gateways') loadGateways();
+              else if (activeTab === 'transactions') loadTransactions();
             }}
             className="p-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-all cursor-pointer"
             title="Refresh statistics"
@@ -842,6 +996,17 @@ export default function AdminDashboard() {
             <CreditCard className="w-4 h-4" />
             Payment Setup
           </button>
+          <button
+            onClick={() => setActiveTab('transactions')}
+            className={`flex items-center gap-2 px-3.5 py-2.5 md:px-5 md:py-3 rounded-xl text-[10px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'transactions'
+                ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            Audit Ledger
+          </button>
         </section>
 
         {/* Tab Body Render */}
@@ -904,193 +1069,331 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Gold Controls */}
+                    {/* Platform Limits */}
                     <div className="border-b border-slate-900/60 pb-3">
-                      <h4 className="text-[10px] font-black uppercase text-yellow-500 tracking-widest mb-3">2. Gold (XAU/USD) Rate Controls</h4>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="col-span-2">
-                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Feed Source Type</label>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setGoldPriceType('LIVE')}
-                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
-                                goldPriceType === 'LIVE'
-                                  ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                                  : 'bg-slate-950 border-slate-900 text-slate-500'
-                              }`}
-                            >
-                              Live API Feed
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setGoldPriceType('MANUAL')}
-                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
-                                goldPriceType === 'MANUAL'
-                                  ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-                                  : 'bg-slate-950 border-slate-900 text-slate-500'
-                              }`}
-                            >
-                              Manual Price
-                            </button>
-                          </div>
-                        </div>
-
-                        {goldPriceType === 'MANUAL' && (
-                          <div className="col-span-2">
-                            <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Manual Base Price ($/oz)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={goldManualPrice}
-                              onChange={(e) => setGoldManualPrice(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
-                              placeholder="2400.00"
-                            />
-                          </div>
-                        )}
-
+                      <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-3">2. Transaction & Bet Limits</h4>
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Price Offset ($)</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={goldPriceOffset}
-                            onChange={(e) => setGoldPriceOffset(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
-                            placeholder="0.00"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Trend Direction</label>
-                          <select
-                            value={goldTrend}
-                            onChange={(e: any) => setGoldTrend(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-bold"
-                          >
-                            <option value="NEUTRAL">Neutral</option>
-                            <option value="UP">Bullish (Up)</option>
-                            <option value="DOWN">Bearish (Down)</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Silver Controls */}
-                    <div className="pb-2">
-                      <h4 className="text-[10px] font-black uppercase text-slate-300 tracking-widest mb-3">3. Silver (XAG/USD) Rate Controls</h4>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <div className="col-span-2">
-                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Feed Source Type</label>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setSilverPriceType('LIVE')}
-                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
-                                silverPriceType === 'LIVE'
-                                  ? 'bg-slate-300/20 text-slate-200 border-slate-300/30'
-                                  : 'bg-slate-950 border-slate-900 text-slate-500'
-                              }`}
-                            >
-                              Live API Feed
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setSilverPriceType('MANUAL')}
-                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
-                                silverPriceType === 'MANUAL'
-                                  ? 'bg-slate-300/20 text-slate-200 border-slate-300/30'
-                                  : 'bg-slate-950 border-slate-900 text-slate-500'
-                              }`}
-                            >
-                              Manual Price
-                            </button>
-                          </div>
-                        </div>
-
-                        {silverPriceType === 'MANUAL' && (
-                          <div className="col-span-2">
-                            <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Manual Base Price ($/oz)</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={silverManualPrice}
-                              onChange={(e) => setSilverManualPrice(e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
-                              placeholder="30.00"
-                            />
-                          </div>
-                        )}
-
-                        <div>
-                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Price Offset ($)</label>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Min Bet ($)</label>
                           <input
                             type="number"
                             step="0.01"
-                            value={silverPriceOffset}
-                            onChange={(e) => setSilverPriceOffset(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
-                            placeholder="0.00"
+                            value={minBetAmount}
+                            onChange={(e) => setMinBetAmount(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-mono font-bold"
                           />
                         </div>
-
                         <div>
-                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Trend Direction</label>
-                          <select
-                            value={silverTrend}
-                            onChange={(e: any) => setSilverTrend(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-bold"
-                          >
-                            <option value="NEUTRAL">Neutral</option>
-                            <option value="UP">Bullish (Up)</option>
-                            <option value="DOWN">Bearish (Down)</option>
-                          </select>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Max Bet ($)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={maxBetAmount}
+                            onChange={(e) => setMaxBetAmount(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Min Deposit ($)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={minDepositAmount}
+                            onChange={(e) => setMinDepositAmount(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Min Withdraw ($)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={minWithdrawalAmount}
+                            onChange={(e) => setMinWithdrawalAmount(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-mono font-bold"
+                          />
                         </div>
                       </div>
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 hover:border-indigo-400 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-600/5"
+                      disabled={savingConfig}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 hover:border-indigo-400 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-600/5"
                     >
-                      Save Configurations
+                      {savingConfig ? 'Saving Settings...' : 'Save General Limits'}
                     </button>
                   </form>
                 </div>
 
-                {/* Price manipulation nudges card */}
-                <div className="bg-slate-900/30 border border-slate-900/70 rounded-2xl p-5 flex flex-col gap-3.5">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                    <Flame className="w-4 h-4 text-red-500" />
-                    Manual Price Nudge
-                  </h3>
-                  <p className="text-[10px] text-slate-500 font-semibold leading-relaxed">
-                    Instantly inject an upward or downward price shock. The background simulator aggregates the nudge in the next 1-second price calculation.
-                  </p>
+                {/* Redesigned Real-time Gold Console */}
+                <div className="border border-yellow-500/20 bg-slate-900/30 rounded-2xl p-4 md:p-5 flex flex-col gap-3.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-black uppercase text-yellow-500 tracking-widest flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-yellow-500" />
+                      Gold Rate manipulation
+                    </h4>
+                    <span className="flex items-center gap-1">
+                      <span className={`h-1.5 w-1.5 rounded-full ${goldPriceType === 'LIVE' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                      <span className="text-[8px] font-bold text-slate-500 uppercase">{goldPriceType === 'LIVE' ? 'Live API' : 'Manual'}</span>
+                    </span>
+                  </div>
 
-                  <div className="space-y-3 pt-1">
-                    <div>
-                      <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Gold Price (Au)</span>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        <button onClick={() => handleForceNudge(1, 5.00)} className="py-2 bg-slate-950 border border-emerald-950 hover:bg-emerald-950/20 text-emerald-400 hover:border-emerald-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">+$5</button>
-                        <button onClick={() => handleForceNudge(1, 1.00)} className="py-2 bg-slate-950 border border-emerald-950 hover:bg-emerald-950/20 text-emerald-400 hover:border-emerald-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">+$1</button>
-                        <button onClick={() => handleForceNudge(1, -1.00)} className="py-2 bg-slate-950 border border-red-950 hover:bg-red-950/20 text-red-400 hover:border-red-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">-$1</button>
-                        <button onClick={() => handleForceNudge(1, -5.00)} className="py-2 bg-slate-950 border border-red-950 hover:bg-red-950/20 text-red-400 hover:border-red-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">-$5</button>
-                      </div>
+                  {/* Feed type selection */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateConfigField({ goldPriceType: 'LIVE' })}
+                      className={`py-1.5 px-2 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                        goldPriceType === 'LIVE'
+                          ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+                          : 'bg-slate-950 border-slate-900 text-slate-500'
+                      }`}
+                    >
+                      Live API Feed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateConfigField({ goldPriceType: 'MANUAL' })}
+                      className={`py-1.5 px-2 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                        goldPriceType === 'MANUAL'
+                          ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30'
+                          : 'bg-slate-950 border-slate-900 text-slate-500'
+                      }`}
+                    >
+                      Manual Base
+                    </button>
+                  </div>
+
+                  {/* Display Base price */}
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                    <span>Base Price (Live/Manual):</span>
+                    {goldPriceType === 'LIVE' ? (
+                      <span className="font-mono text-white font-bold">${liveGoldPrice.toFixed(2)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={goldManualPrice}
+                        onChange={(e) => setGoldManualPrice(e.target.value)}
+                        onBlur={() => updateConfigField({ goldManualPrice })}
+                        onKeyDown={(e) => e.key === 'Enter' && updateConfigField({ goldManualPrice })}
+                        className="w-24 bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1 px-2 text-[11px] text-white font-mono font-bold text-right"
+                      />
+                    )}
+                  </div>
+
+                  {/* Adjust Offset */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <span>Live Price Offset:</span>
+                      <span className={`font-mono font-black ${parseFloat(goldPriceOffset) > 0 ? 'text-emerald-400' : parseFloat(goldPriceOffset) < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                        ${parseFloat(goldPriceOffset) >= 0 ? '+' : ''}{parseFloat(goldPriceOffset).toFixed(2)}
+                      </span>
                     </div>
-
-                    <div>
-                      <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Silver Price (Ag)</span>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        <button onClick={() => handleForceNudge(2, 0.50)} className="py-2 bg-slate-950 border border-emerald-950 hover:bg-emerald-950/20 text-emerald-400 hover:border-emerald-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">+$0.5</button>
-                        <button onClick={() => handleForceNudge(2, 0.10)} className="py-2 bg-slate-950 border border-emerald-950 hover:bg-emerald-950/20 text-emerald-400 hover:border-emerald-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">+$0.1</button>
-                        <button onClick={() => handleForceNudge(2, -0.10)} className="py-2 bg-slate-950 border border-red-950 hover:bg-red-950/20 text-red-400 hover:border-red-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">-$0.1</button>
-                        <button onClick={() => handleForceNudge(2, -0.50)} className="py-2 bg-slate-950 border border-red-950 hover:bg-red-950/20 text-red-400 hover:border-red-800/40 rounded-xl font-bold text-xs cursor-pointer transition-all">-$0.5</button>
-                      </div>
+                    
+                    <div className="grid grid-cols-6 gap-1">
+                      <button type="button" onClick={() => updateConfigField({ goldPriceOffset: (parseFloat(goldPriceOffset) - 5).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-red-950 hover:border-red-900/30 text-red-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">-5</button>
+                      <button type="button" onClick={() => updateConfigField({ goldPriceOffset: (parseFloat(goldPriceOffset) - 1).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-red-950 hover:border-red-900/30 text-red-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">-1</button>
+                      <button type="button" onClick={() => updateConfigField({ goldPriceOffset: (parseFloat(goldPriceOffset) - 0.1).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-red-950 hover:border-red-900/30 text-red-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">-0.1</button>
+                      <button type="button" onClick={() => updateConfigField({ goldPriceOffset: (parseFloat(goldPriceOffset) + 0.1).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-emerald-950 hover:border-emerald-900/30 text-emerald-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">+0.1</button>
+                      <button type="button" onClick={() => updateConfigField({ goldPriceOffset: (parseFloat(goldPriceOffset) + 1).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-emerald-950 hover:border-emerald-900/30 text-emerald-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">+1</button>
+                      <button type="button" onClick={() => updateConfigField({ goldPriceOffset: (parseFloat(goldPriceOffset) + 5).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-emerald-950 hover:border-emerald-900/30 text-emerald-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">+5</button>
                     </div>
                   </div>
+
+                  {/* Trend Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider">Target Trend Bias</label>
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateConfigField({ goldTrend: 'UP' })}
+                        className={`py-1 rounded-lg text-[9px] font-bold uppercase border transition-all cursor-pointer ${
+                          goldTrend === 'UP' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/40' : 'bg-slate-950 border-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Bullish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateConfigField({ goldTrend: 'NEUTRAL' })}
+                        className={`py-1 rounded-lg text-[9px] font-bold uppercase border transition-all cursor-pointer ${
+                          goldTrend === 'NEUTRAL' ? 'bg-slate-900 text-slate-300 border-slate-800' : 'bg-slate-950 border-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Neutral
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateConfigField({ goldTrend: 'DOWN' })}
+                        className={`py-1 rounded-lg text-[9px] font-bold uppercase border transition-all cursor-pointer ${
+                          goldTrend === 'DOWN' ? 'bg-red-950/40 text-red-400 border-red-900/40' : 'bg-slate-950 border-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Bearish
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Force Price Spike Nudges */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider font-semibold">Instant Price Shock (Nudge)</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" onClick={() => handleForceNudge(1, 5.00)} className="py-1.5 bg-emerald-950/10 hover:bg-emerald-950/30 border border-emerald-900/20 text-emerald-400 rounded-lg text-[9px] font-extrabold cursor-pointer transition-all flex items-center justify-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-emerald-400" />
+                        Spike Up (+$5)
+                      </button>
+                      <button type="button" onClick={() => handleForceNudge(1, -5.00)} className="py-1.5 bg-red-950/10 hover:bg-red-950/30 border border-red-900/20 text-red-400 rounded-lg text-[9px] font-extrabold cursor-pointer transition-all flex items-center justify-center gap-1">
+                        <TrendingDown className="w-3 h-3 text-red-400" />
+                        Spike Down (-$5)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Resulting preview price */}
+                  <div className="mt-1 bg-slate-950 border border-slate-900 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                    <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Calculated Client Gold Rate</span>
+                    <span className="text-base font-black font-mono tracking-wider text-yellow-500">
+                      ${((goldPriceType === 'MANUAL' ? parseFloat(goldManualPrice) : liveGoldPrice) + parseFloat(goldPriceOffset)).toFixed(2)}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Redesigned Real-time Silver Console */}
+                <div className="border border-slate-500/20 bg-slate-900/30 rounded-2xl p-4 md:p-5 flex flex-col gap-3.5">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[10px] font-black uppercase text-slate-300 tracking-widest flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-slate-300" />
+                      Silver Rate manipulation
+                    </h4>
+                    <span className="flex items-center gap-1">
+                      <span className={`h-1.5 w-1.5 rounded-full ${silverPriceType === 'LIVE' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`}></span>
+                      <span className="text-[8px] font-bold text-slate-500 uppercase">{silverPriceType === 'LIVE' ? 'Live API' : 'Manual'}</span>
+                    </span>
+                  </div>
+
+                  {/* Feed type selection */}
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateConfigField({ silverPriceType: 'LIVE' })}
+                      className={`py-1.5 px-2 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                        silverPriceType === 'LIVE'
+                          ? 'bg-slate-300/10 text-slate-300 border-slate-300/30'
+                          : 'bg-slate-950 border-slate-900 text-slate-500'
+                      }`}
+                    >
+                      Live API Feed
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateConfigField({ silverPriceType: 'MANUAL' })}
+                      className={`py-1.5 px-2 rounded-xl text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                        silverPriceType === 'MANUAL'
+                          ? 'bg-slate-300/10 text-slate-300 border-slate-300/30'
+                          : 'bg-slate-950 border-slate-900 text-slate-500'
+                      }`}
+                    >
+                      Manual Base
+                    </button>
+                  </div>
+
+                  {/* Display Base price */}
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400">
+                    <span>Base Price (Live/Manual):</span>
+                    {silverPriceType === 'LIVE' ? (
+                      <span className="font-mono text-white font-bold">${liveSilverPrice.toFixed(2)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={silverManualPrice}
+                        onChange={(e) => setSilverManualPrice(e.target.value)}
+                        onBlur={() => updateConfigField({ silverManualPrice })}
+                        onKeyDown={(e) => e.key === 'Enter' && updateConfigField({ silverManualPrice })}
+                        className="w-24 bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1 px-2 text-[11px] text-white font-mono font-bold text-right"
+                      />
+                    )}
+                  </div>
+
+                  {/* Adjust Offset */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <span>Live Price Offset:</span>
+                      <span className={`font-mono font-black ${parseFloat(silverPriceOffset) > 0 ? 'text-emerald-400' : parseFloat(silverPriceOffset) < 0 ? 'text-red-400' : 'text-slate-400'}`}>
+                        ${parseFloat(silverPriceOffset) >= 0 ? '+' : ''}{parseFloat(silverPriceOffset).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-6 gap-1">
+                      <button type="button" onClick={() => updateConfigField({ silverPriceOffset: (parseFloat(silverPriceOffset) - 0.5).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-red-950 hover:border-red-900/30 text-red-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">-0.5</button>
+                      <button type="button" onClick={() => updateConfigField({ silverPriceOffset: (parseFloat(silverPriceOffset) - 0.1).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-red-950 hover:border-red-900/30 text-red-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">-0.1</button>
+                      <button type="button" onClick={() => updateConfigField({ silverPriceOffset: (parseFloat(silverPriceOffset) - 0.02).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-red-950 hover:border-red-900/30 text-red-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">-0.02</button>
+                      <button type="button" onClick={() => updateConfigField({ silverPriceOffset: (parseFloat(silverPriceOffset) + 0.02).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-emerald-950 hover:border-emerald-900/30 text-emerald-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">+0.02</button>
+                      <button type="button" onClick={() => updateConfigField({ silverPriceOffset: (parseFloat(silverPriceOffset) + 0.1).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-emerald-950 hover:border-emerald-900/30 text-emerald-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">+0.1</button>
+                      <button type="button" onClick={() => updateConfigField({ silverPriceOffset: (parseFloat(silverPriceOffset) + 0.5).toFixed(2) })} className="py-1.5 bg-slate-950 hover:bg-slate-900 border border-emerald-950 hover:border-emerald-900/30 text-emerald-400 rounded-lg text-[9px] font-black cursor-pointer transition-all">+0.5</button>
+                    </div>
+                  </div>
+
+                  {/* Trend Selector */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider">Target Trend Bias</label>
+                    <div className="grid grid-cols-3 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => updateConfigField({ silverTrend: 'UP' })}
+                        className={`py-1 rounded-lg text-[9px] font-bold uppercase border transition-all cursor-pointer ${
+                          silverTrend === 'UP' ? 'bg-emerald-950/40 text-emerald-400 border-emerald-900/40' : 'bg-slate-950 border-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Bullish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateConfigField({ silverTrend: 'NEUTRAL' })}
+                        className={`py-1 rounded-lg text-[9px] font-bold uppercase border transition-all cursor-pointer ${
+                          silverTrend === 'NEUTRAL' ? 'bg-slate-900 text-slate-300 border-slate-800' : 'bg-slate-950 border-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Neutral
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateConfigField({ silverTrend: 'DOWN' })}
+                        className={`py-1 rounded-lg text-[9px] font-bold uppercase border transition-all cursor-pointer ${
+                          silverTrend === 'DOWN' ? 'bg-red-950/40 text-red-400 border-red-900/40' : 'bg-slate-950 border-slate-900 text-slate-500'
+                        }`}
+                      >
+                        Bearish
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Force Price Spike Nudges */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider font-semibold">Instant Price Shock (Nudge)</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" onClick={() => handleForceNudge(2, 0.50)} className="py-1.5 bg-emerald-950/10 hover:bg-emerald-950/30 border border-emerald-900/20 text-emerald-400 rounded-lg text-[9px] font-extrabold cursor-pointer transition-all flex items-center justify-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-emerald-400" />
+                        Spike Up (+$.5)
+                      </button>
+                      <button type="button" onClick={() => handleForceNudge(2, -0.50)} className="py-1.5 bg-red-950/10 hover:bg-red-950/30 border border-red-900/20 text-red-400 rounded-lg text-[9px] font-extrabold cursor-pointer transition-all flex items-center justify-center gap-1">
+                        <TrendingDown className="w-3 h-3 text-red-400" />
+                        Spike Down (-$.5)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Resulting preview price */}
+                  <div className="mt-1 bg-slate-950 border border-slate-900 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                    <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Calculated Client Silver Rate</span>
+                    <span className="text-base font-black font-mono tracking-wider text-slate-300">
+                      ${((silverPriceType === 'MANUAL' ? parseFloat(silverManualPrice) : liveSilverPrice) + parseFloat(silverPriceOffset)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
               </div>
 
               {/* Right Column Monitoring */}
@@ -1357,38 +1660,16 @@ export default function AdminDashboard() {
                           <td className="py-3.5 text-slate-500 font-normal">{new Date(u.created_at).toLocaleDateString()}</td>
                           <td className="py-3.5 pr-2 text-right">
                             <div className="flex justify-end items-center gap-2">
-                              {u.role !== 'TREASURY' && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedUser(u);
-                                    setAdjustAmount('');
-                                    setAdjustAction('ADD');
-                                  }}
-                                  className="px-3 py-1.5 bg-slate-950 hover:bg-indigo-950 border border-slate-850 hover:border-indigo-900 text-indigo-400 font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all hover:text-indigo-300"
-                                >
-                                  Adjust Balance
-                                </button>
-                              )}
-                              {u.role !== 'ADMIN' && u.role !== 'TREASURY' && (
-                                <>
-                                  <button
-                                    onClick={() => handleToggleBan(u)}
-                                    className={`px-3 py-1.5 border font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all ${
-                                      u.is_banned
-                                        ? 'bg-emerald-950/20 hover:bg-emerald-950 border-emerald-900/30 hover:border-emerald-800 text-emerald-400 hover:text-emerald-300'
-                                        : 'bg-amber-950/20 hover:bg-amber-950 border-amber-900/30 hover:border-amber-800 text-amber-500 hover:text-amber-400'
-                                    }`}
-                                  >
-                                    {u.is_banned ? 'Unban' : 'Ban'}
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteUser(u)}
-                                    className="px-3 py-1.5 bg-red-950/20 hover:bg-red-950 border border-red-900/30 hover:border-red-800 text-red-400 hover:text-red-300 font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all"
-                                  >
-                                    Delete
-                                  </button>
-                                </>
-                              )}
+                              <button
+                                onClick={() => {
+                                  setSelectedUser(u);
+                                  setAdjustAmount('');
+                                  setAdjustAction('ADD');
+                                }}
+                                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 hover:border-indigo-400 text-white font-black rounded-lg text-[10px] uppercase tracking-wide cursor-pointer transition-all shadow-sm shadow-indigo-600/10"
+                              >
+                                Inspect User
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1671,95 +1952,452 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* TAB 6: AUDIT LEDGER */}
+          {activeTab === 'transactions' && (
+            <div className="bg-slate-900/30 border border-slate-900/70 rounded-2xl p-6">
+              <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-900">
+                <div>
+                  <h3 className="text-sm font-black uppercase text-white flex items-center gap-2">
+                    <Clock className="w-4.5 h-4.5 text-indigo-400" />
+                    Transaction Audit Ledger
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-1">
+                    Complete platform-wide transaction trail of deposits, withdrawals, predictions, and balance adjustments.
+                  </p>
+                </div>
+                <button
+                  onClick={loadTransactions}
+                  disabled={loadingTransactions}
+                  className="px-3.5 py-2 bg-slate-950 hover:bg-slate-900 border border-slate-850 rounded-xl text-slate-400 hover:text-white font-bold text-xs uppercase flex items-center gap-2 cursor-pointer transition-all disabled:opacity-55"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingTransactions ? 'animate-spin' : ''}`} />
+                  Sync Ledger
+                </button>
+              </div>
+
+              {loadingTransactions ? (
+                <div className="py-24 text-center text-slate-500 font-bold text-xs flex flex-col items-center gap-2">
+                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-400" />
+                  Loading transactions trail...
+                </div>
+              ) : transactionsList.length === 0 ? (
+                <div className="py-16 text-center text-slate-500 text-xs font-semibold">
+                  No transaction records found in ledger registry.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse min-w-[850px]">
+                    <thead>
+                      <tr className="text-slate-500 font-bold border-b border-slate-900/80 pb-2">
+                        <th className="pb-3 pl-2">Transaction ID</th>
+                        <th className="pb-3">User Email</th>
+                        <th className="pb-3">Type</th>
+                        <th className="pb-3">Amount</th>
+                        <th className="pb-3">Reference ID / Source</th>
+                        <th className="pb-3 pr-2 text-right">Timestamp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactionsList.map((t) => {
+                        let typeColor = 'text-slate-400 bg-slate-950 border-slate-850';
+                        let amountColor = 'text-white';
+                        let prefix = '';
+
+                        if (t.type === 'DEPOSIT' || t.type === 'MANUAL_CREDIT' || t.type === 'PRED_WIN') {
+                          typeColor = 'bg-emerald-950/20 text-emerald-400 border-emerald-900/30';
+                          amountColor = 'text-emerald-400 font-black';
+                          prefix = '+';
+                        } else if (t.type === 'WITHDRAW' || t.type === 'MANUAL_DEBIT' || t.type === 'PRED_LOSS') {
+                          typeColor = 'bg-red-950/20 text-red-400 border-red-900/30';
+                          amountColor = 'text-red-400 font-black';
+                          prefix = ''; // negative sign is in the amount
+                        } else if (t.type === 'PLATFORM_EARNING') {
+                          typeColor = 'bg-yellow-950/20 text-yellow-500 border-yellow-900/30';
+                          amountColor = 'text-yellow-500 font-black';
+                          prefix = '+';
+                        }
+
+                        return (
+                          <tr key={t.id} className="border-b border-slate-950/40 hover:bg-slate-900/10 transition-colors font-semibold">
+                            <td className="py-3.5 pl-2 text-slate-500 font-mono text-[10px] select-all select-text cursor-text" title={t.id}>{t.id.substring(0, 15)}...</td>
+                            <td className="py-3.5 text-white font-bold">{t.user_email || 'System Account'}</td>
+                            <td className="py-3.5">
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${typeColor}`}>
+                                {t.type}
+                              </span>
+                            </td>
+                            <td className={`py-3.5 font-mono text-sm ${amountColor}`}>
+                              {prefix}${parseFloat(t.amount).toFixed(2)}
+                            </td>
+                            <td className="py-3.5 text-slate-400 font-mono select-all select-text cursor-text text-[10px]" title={t.reference_id}>{t.reference_id}</td>
+                            <td className="py-3.5 pr-2 text-right text-slate-500 font-normal">{new Date(t.created_at).toLocaleString()}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
         </section>
       </main>
 
-      {/* Adjust User Balance Modal */}
+      {/* User Inspection & Management Center */}
       {selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl relative">
-            <button
-              onClick={() => setSelectedUser(null)}
-              className="absolute top-4 right-4 p-1.5 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <h3 className="text-sm font-black uppercase text-white flex items-center gap-2 mb-2">
-              <Sliders className="w-4.5 h-4.5 text-indigo-400" />
-              Adjust Account balance
-            </h3>
-            <p className="text-[10px] text-slate-500 font-semibold mb-6">Modify user wallet balance for: <span className="text-indigo-400">{selectedUser.email}</span></p>
-
-            {userMsg && (
-              <div className="p-3 bg-indigo-950/40 border border-indigo-900/30 text-indigo-300 text-xs rounded-xl text-center font-bold mb-4">
-                {userMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleAdjustBalance} className="space-y-4">
-              <div>
-                <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Select Operation Action</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAdjustAction('ADD')}
-                    className={`py-2 px-3 rounded-xl text-xs font-black uppercase border transition-all cursor-pointer ${
-                      adjustAction === 'ADD'
-                        ? 'bg-emerald-600 text-white border-emerald-500 shadow shadow-emerald-600/10'
-                        : 'bg-slate-950 border-slate-850 text-slate-400 hover:bg-slate-900'
-                    }`}
-                  >
-                    Credit (ADD)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdjustAction('SUBTRACT')}
-                    className={`py-2 px-3 rounded-xl text-xs font-black uppercase border transition-all cursor-pointer ${
-                      adjustAction === 'SUBTRACT'
-                        ? 'bg-red-600 text-white border-red-500 shadow shadow-red-600/10'
-                        : 'bg-slate-950 border-slate-850 text-slate-400 hover:bg-slate-900'
-                    }`}
-                  >
-                    Debit (SUBTRACT)
-                  </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 md:p-4 overflow-y-auto">
+          <div className="w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-3xl p-4 md:p-6 shadow-2xl relative flex flex-col max-h-[90vh] overflow-hidden animate-scale-up">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-950 border border-indigo-900/40 rounded-xl text-indigo-400">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black uppercase text-white tracking-wide">
+                    User Management Center
+                  </h3>
+                  <p className="text-[10px] text-slate-500 font-bold">
+                    Inspect profile details, wallet ledger state, bet sheets, and apply administrative overrides.
+                  </p>
                 </div>
               </div>
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="p-1.5 bg-slate-950 hover:bg-slate-850 border border-slate-850 hover:border-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+              >
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
 
-              <div>
-                <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Adjustment Amount (in USD)</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-mono font-bold">$</div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={adjustAmount}
-                    onChange={(e) => setAdjustAmount(e.target.value)}
-                    required
-                    placeholder="e.g. 500.00"
-                    className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-xl py-2.5 pl-7 pr-3 text-xs text-white font-mono font-bold transition-all"
-                  />
+            {/* Sub-body grid */}
+            <div className="flex-1 grid grid-cols-12 gap-5 overflow-y-auto pr-1">
+              
+              {/* LEFT COLUMN: Controls & Profile (Width: 5/12) */}
+              <div className="col-span-12 lg:col-span-5 flex flex-col gap-4">
+                
+                {/* Profile Card */}
+                <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4 flex flex-col gap-3">
+                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Traders Credentials</span>
+                  <div className="space-y-2">
+                    <div className="flex justify-between border-b border-slate-900 pb-1.5 text-xs">
+                      <span className="text-slate-400 font-semibold">User ID:</span>
+                      <span className="font-bold text-slate-200">#{selectedUser.id}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-900 pb-1.5 text-xs">
+                      <span className="text-slate-400 font-semibold">Email address:</span>
+                      <span className="font-bold text-white select-all">{selectedUser.email}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-900 pb-1.5 text-xs">
+                      <span className="text-slate-400 font-semibold">Mobile number:</span>
+                      <span className="font-bold text-slate-200">{selectedUser.mobile || 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-900 pb-1.5 text-xs">
+                      <span className="text-slate-400 font-semibold">System Role:</span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-slate-900 border border-slate-850 text-slate-400">
+                        {selectedUser.role}
+                      </span>
+                    </div>
+                    <div className="flex justify-between border-b border-slate-900 pb-1.5 text-xs">
+                      <span className="text-slate-400 font-semibold">Registration Date:</span>
+                      <span className="font-bold text-slate-400">{new Date(selectedUser.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-400 font-semibold">Banned Status:</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                        selectedUser.is_banned
+                          ? 'bg-red-950 text-red-400 border-red-900'
+                          : 'bg-emerald-950 text-emerald-400 border-emerald-900'
+                      }`}>
+                        {selectedUser.is_banned ? 'Banned' : 'Active'}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <span className="block text-[8px] text-slate-600 mt-1 font-semibold">Currently client balance: ${parseFloat(selectedUser.balance || '0').toFixed(2)} USD</span>
+
+                {/* Adjust balance form */}
+                <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4">
+                  <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-3">Adjust Wallet balance</span>
+                  
+                  {userMsg && (
+                    <div className="p-2.5 bg-indigo-950/40 border border-indigo-900/30 text-indigo-300 text-[11px] rounded-lg text-center font-bold mb-3">
+                      {userMsg}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleAdjustBalance} className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAdjustAction('ADD')}
+                        className={`py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                          adjustAction === 'ADD'
+                            ? 'bg-emerald-600 text-white border-emerald-500'
+                            : 'bg-slate-950 border-slate-850 text-slate-450 hover:bg-slate-900'
+                        }`}
+                      >
+                        Credit (+)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdjustAction('SUBTRACT')}
+                        className={`py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                          adjustAction === 'SUBTRACT'
+                            ? 'bg-red-600 text-white border-red-500'
+                            : 'bg-slate-950 border-slate-850 text-slate-450 hover:bg-slate-900'
+                        }`}
+                      >
+                        Debit (-)
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-500 font-mono font-bold">$</div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={adjustAmount}
+                        onChange={(e) => setAdjustAmount(e.target.value)}
+                        required
+                        placeholder="Adjustment Amount (USD)"
+                        className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-xl py-2 pl-6 pr-2 text-xs text-white font-mono font-bold transition-all"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 text-[9px] text-slate-500 font-bold justify-between">
+                      <span>Available Balance: ${parseFloat(selectedUser.balance || '0').toFixed(2)}</span>
+                      <span>Locked Balance: ${parseFloat(selectedUser.locked_balance || '0').toFixed(2)}</span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 hover:border-indigo-400 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow"
+                    >
+                      Apply Balance Adjustment
+                    </button>
+                  </form>
+                </div>
+
+                {/* Account operations controls (Ban/Unban/Delete) */}
+                {selectedUser.role !== 'ADMIN' && selectedUser.role !== 'TREASURY' && (
+                  <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4 flex flex-col gap-2.5">
+                    <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Destructive Actions</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleToggleBan(selectedUser)}
+                        className={`py-2 border font-black rounded-xl text-[10px] uppercase tracking-wide cursor-pointer transition-all ${
+                          selectedUser.is_banned
+                            ? 'bg-emerald-950/30 border-emerald-900/30 text-emerald-400 hover:bg-emerald-950'
+                            : 'bg-amber-950/30 border-amber-900/30 text-amber-500 hover:bg-amber-950'
+                        }`}
+                      >
+                        {selectedUser.is_banned ? 'Unban Account' : 'Ban Account'}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(selectedUser)}
+                        className="py-2 bg-red-950/30 border border-red-900/30 text-red-400 hover:bg-red-950 font-black rounded-xl text-[10px] uppercase tracking-wide cursor-pointer transition-all"
+                      >
+                        Delete User
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedUser(null)}
-                  className="flex-1 py-2.5 bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-400 font-bold rounded-xl text-xs uppercase transition-all cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 hover:border-indigo-400 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
-                >
-                  Confirm Adjustment
-                </button>
+              {/* RIGHT COLUMN: User logs & telemetry tabs (Width: 7/12) */}
+              <div className="col-span-12 lg:col-span-7 flex flex-col gap-4 max-h-[60vh] lg:max-h-full overflow-hidden">
+                
+                {/* Active predictions tab */}
+                <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4 flex flex-col max-h-[220px] overflow-hidden">
+                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">
+                    Active Predictions ({activeBets.filter(b => b.user_id === selectedUser.id).length})
+                  </span>
+                  <div className="flex-1 overflow-y-auto">
+                    {activeBets.filter(b => b.user_id === selectedUser.id).length === 0 ? (
+                      <div className="text-[10px] text-slate-500 font-bold text-center py-6">
+                        No active prediction contracts.
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-1">
+                            <th className="pb-1">Asset</th>
+                            <th className="pb-1">Direction</th>
+                            <th className="pb-1">Amount</th>
+                            <th className="pb-1">Entry</th>
+                            <th className="pb-1 text-right">Overrides</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {activeBets.filter(b => b.user_id === selectedUser.id).map(b => (
+                            <tr key={b.id} className="border-b border-slate-950/40 py-1 font-semibold">
+                              <td className="py-1.5 text-white font-bold">{b.item_name.split(' ')[0]}</td>
+                              <td className="py-1.5">
+                                <span className={`inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[8px] font-black border ${
+                                  b.direction === 'UP'
+                                    ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/30'
+                                    : 'text-red-400 bg-red-950/20 border-red-900/30'
+                                }`}>
+                                  {b.direction}
+                                </span>
+                              </td>
+                              <td className="py-1.5 text-white font-bold">${parseFloat(b.amount).toFixed(2)}</td>
+                              <td className="py-1.5 text-slate-400 font-mono">${parseFloat(b.start_price).toFixed(2)}</td>
+                              <td className="py-1.5 text-right">
+                                <div className="inline-flex gap-1 justify-end">
+                                  <button
+                                    onClick={() => handleBetOverride(b.id, 'FORCE_WIN')}
+                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black border transition-all cursor-pointer ${
+                                      b.override_status === 'FORCE_WIN'
+                                        ? 'bg-emerald-600 border-emerald-500 text-white'
+                                        : 'bg-slate-950 border-slate-800 text-emerald-400'
+                                    }`}
+                                  >
+                                    Win
+                                  </button>
+                                  <button
+                                    onClick={() => handleBetOverride(b.id, 'FORCE_LOSS')}
+                                    className={`px-1.5 py-0.5 rounded text-[8px] font-black border transition-all cursor-pointer ${
+                                      b.override_status === 'FORCE_LOSS'
+                                        ? 'bg-red-600 border-red-500 text-white'
+                                        : 'bg-slate-950 border-slate-800 text-red-400'
+                                    }`}
+                                  >
+                                    Loss
+                                  </button>
+                                  {b.override_status && (
+                                    <button
+                                      onClick={() => handleBetOverride(b.id, null)}
+                                      className="px-1 bg-slate-900 text-slate-505 rounded text-[8px] font-bold border border-slate-800"
+                                      title="Reset Override"
+                                    >
+                                      Reset
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                {/* Resolved predictions log tab */}
+                <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4 flex flex-col max-h-[220px] overflow-hidden">
+                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">
+                    Resolved Predictions ({betLogs.filter(b => b.user_id === selectedUser.id).length})
+                  </span>
+                  <div className="flex-1 overflow-y-auto">
+                    {betLogs.filter(b => b.user_id === selectedUser.id).length === 0 ? (
+                      <div className="text-[10px] text-slate-500 font-bold text-center py-6">
+                        No prediction logs.
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-1">
+                            <th className="pb-1">Asset</th>
+                            <th className="pb-1">Bet Size</th>
+                            <th className="pb-1">Direction</th>
+                            <th className="pb-1">Exit Detail</th>
+                            <th className="pb-1">Result</th>
+                            <th className="pb-1 text-right">Profit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {betLogs.filter(b => b.user_id === selectedUser.id).slice(0, 50).map(b => {
+                            const isWin = b.status === 'WON';
+                            const isLoss = b.status === 'LOST';
+                            const profit = b.payout_amount ? parseFloat(b.payout_amount) - parseFloat(b.amount) : 0;
+                            return (
+                              <tr key={b.id} className="border-b border-slate-950/40 py-1 font-semibold">
+                                <td className="py-1.5 text-white font-bold">{b.item_name.split(' ')[0]}</td>
+                                <td className="py-1.5 text-slate-300 font-bold">${parseFloat(b.amount).toFixed(2)}</td>
+                                <td className="py-1.5 text-slate-400">{b.direction}</td>
+                                <td className="py-1.5 text-slate-450 font-mono text-[10px]">${parseFloat(b.start_price).toFixed(2)} &rarr; ${b.end_price ? parseFloat(b.end_price).toFixed(2) : '-'}</td>
+                                <td className="py-1.5">
+                                  <span className={`px-1 py-0.2 rounded font-black text-[8px] uppercase border ${
+                                    isWin 
+                                      ? 'bg-emerald-950 text-emerald-400 border-emerald-900/30' 
+                                      : isLoss 
+                                        ? 'bg-red-950 text-red-400 border-red-900/30' 
+                                        : 'bg-slate-950 text-slate-400 border-slate-850'
+                                  }`}>
+                                    {b.status}
+                                  </span>
+                                </td>
+                                <td className={`py-1.5 text-right font-black font-mono ${isWin ? 'text-emerald-400' : (isLoss ? 'text-red-400' : 'text-slate-400')}`}>
+                                  {isWin ? `+$${profit.toFixed(2)}` : (isLoss ? `-$${parseFloat(b.amount).toFixed(2)}` : '$0.00')}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
+                {/* Wallet transactions history list tab */}
+                <div className="bg-slate-950/40 border border-slate-950 rounded-2xl p-4 flex flex-col flex-1 overflow-hidden min-h-[200px]">
+                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">
+                    Wallet Transaction Ledger ({transactionsList.filter(t => t.user_id === selectedUser.id).length})
+                  </span>
+                  <div className="flex-1 overflow-y-auto">
+                    {transactionsList.filter(t => t.user_id === selectedUser.id).length === 0 ? (
+                      <div className="text-[10px] text-slate-500 font-bold text-center py-8">
+                        No transactions registered for user.
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-[11px]">
+                        <thead>
+                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-1">
+                            <th className="pb-1">Type</th>
+                            <th className="pb-1">Amount</th>
+                            <th className="pb-1">Reference</th>
+                            <th className="pb-1 text-right">Timestamp</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transactionsList.filter(t => t.user_id === selectedUser.id).map(t => {
+                            const isCredit = t.type === 'DEPOSIT' || t.type === 'MANUAL_CRED' || t.type === 'PRED_WIN' || t.type === 'MANUAL_CREDIT';
+                            const isDebit = t.type === 'WITHDRAW' || t.type === 'MANUAL_DEB' || t.type === 'PRED_LOSS' || t.type === 'MANUAL_DEBIT';
+                            return (
+                              <tr key={t.id} className="border-b border-slate-950/40 py-1 font-semibold">
+                                <td className="py-1.5">
+                                  <span className={`px-1 rounded text-[8px] font-black uppercase border ${
+                                    isCredit
+                                      ? 'bg-emerald-950/20 text-emerald-400 border-emerald-900/30'
+                                      : isDebit
+                                        ? 'bg-red-950/20 text-red-400 border-red-900/30'
+                                        : 'bg-slate-950 text-slate-400 border-slate-850'
+                                  }`}>
+                                    {t.type}
+                                  </span>
+                                </td>
+                                <td className={`py-1.5 font-bold font-mono ${isCredit ? 'text-emerald-400' : (isDebit ? 'text-red-400' : 'text-slate-400')}`}>
+                                  {isCredit ? '+' : ''}${parseFloat(t.amount).toFixed(2)}
+                                </td>
+                                <td className="py-1.5 text-slate-500 font-mono text-[9px] select-all select-text cursor-text">{t.reference_id}</td>
+                                <td className="py-1.5 text-right text-slate-500 font-normal">{new Date(t.created_at).toLocaleString()}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
               </div>
-            </form>
+
+            </div>
+
           </div>
         </div>
       )}
