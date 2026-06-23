@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: trading-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        value: trading_platform_super_secret_jwt_key_10293847
+      - key: PLATFORM_FEE_PERCENT
+        value: 10
+      - key: ENCRYPTION_KEY
+        value: supersecret32characterkeyforaes256

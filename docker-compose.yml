@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  database:
+    image: timescale/timescaledb:latest-pg16
+    container_name: collectibles-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: collectibles_trading
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: supersecretpassword
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: collectibles-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
