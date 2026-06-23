@@ -725,7 +725,7 @@ export default function TradingDashboard() {
   const resolvedPredictions = predictionsList.filter(p => p.status !== 'PENDING');
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased">
+    <div className="h-[100dvh] flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased overflow-hidden">
       {/* Header Banner */}
       <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2 md:gap-3">
@@ -810,7 +810,7 @@ export default function TradingDashboard() {
 
       {/* Auth Gate Panel */}
       {!token && (
-        <div className="flex-1 flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black">
+        <div className="flex-1 flex items-center justify-center p-6 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black overflow-y-auto">
           <div className="w-full max-w-md bg-slate-900/40 border border-slate-900/90 rounded-3xl p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-yellow-500 to-transparent"></div>
             
@@ -891,7 +891,7 @@ export default function TradingDashboard() {
       {/* Main Terminal Dashboard */}
       {token && (
         <>
-          <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 p-2 md:p-4 max-w-[1700px] mx-auto w-full overflow-hidden h-[calc(100vh-56px-60px)] lg:h-[85vh] lg:grid-rows-[1.6fr_1fr]">
+          <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 p-2 md:p-4 max-w-[1700px] mx-auto w-full overflow-hidden lg:h-full lg:grid-rows-[1.6fr_1fr]">
           
           {/* COLUMN 1: Asset Selector List (Width: 3/12) - Hidden on Mobile, shown on Desktop */}
           <div className="hidden lg:flex lg:col-span-3 lg:row-span-2 flex-col gap-3 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 lg:h-full overflow-hidden">
@@ -1128,7 +1128,7 @@ export default function TradingDashboard() {
                         disabled={!token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))}
                         className={`py-2.5 md:py-3.5 px-3 md:px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
                           !token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))
-                            ? 'bg-slate-950 border-slate-900 text-slate-600 cursor-not-allowed shadow-none'
+                            ? 'bg-emerald-500/20 border-emerald-500/25 text-emerald-500/60 cursor-not-allowed shadow-none'
                             : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 border-emerald-400 shadow-emerald-500/10'
                         }`}
                       >
@@ -1141,7 +1141,7 @@ export default function TradingDashboard() {
                         disabled={!token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))}
                         className={`py-2.5 md:py-3.5 px-3 md:px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
                           !token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))
-                            ? 'bg-slate-950 border-slate-900 text-slate-600 cursor-not-allowed shadow-none'
+                            ? 'bg-red-500/20 border-red-500/25 text-red-500/60 cursor-not-allowed shadow-none'
                             : 'bg-red-500 text-slate-950 hover:bg-red-400 border-red-400 shadow-red-500/10'
                         }`}
                       >
@@ -1644,7 +1644,7 @@ export default function TradingDashboard() {
         </div>
 
         {/* Mobile Bottom Navigation Bar */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-45 bg-slate-950/95 backdrop-blur-md border-t border-slate-900 flex items-center justify-around py-3 px-4 shadow-2xl">
+        <div className="lg:hidden bg-slate-950/95 backdrop-blur-md border-t border-slate-900 flex items-center justify-around py-3 px-4 shadow-2xl relative z-45">
           <button
             onClick={() => setMobileTab('trade')}
             className={`flex flex-col items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${

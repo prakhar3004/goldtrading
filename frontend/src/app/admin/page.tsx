@@ -612,28 +612,28 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased">
       {/* Top Banner Header */}
-      <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-tr from-indigo-500 to-indigo-600 rounded-xl shadow-lg shadow-indigo-500/10">
-            <Shield className="w-5 h-5 text-white" />
+      <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="p-2 bg-gradient-to-tr from-indigo-500 to-indigo-600 rounded-xl shadow-lg shadow-indigo-500/10">
+            <Shield className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight text-white">
+            <h1 className="text-base md:text-xl font-black tracking-tight text-white">
               KuberKhajana <span className="bg-gradient-to-r from-indigo-400 to-indigo-500 bg-clip-text text-transparent">Admin</span>
             </h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Control Console & Telemetry</p>
+            <p className="hidden sm:block text-[10px] text-slate-500 uppercase tracking-widest font-bold">Control Console & Telemetry</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <a 
             href="/"
-            className="py-2.5 px-4 text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+            className="py-2 px-3 md:py-2.5 md:px-4 text-xs bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
           >
             <ArrowLeft className="w-4 h-4 text-slate-400" />
-            Trading Console
+            <span className="hidden sm:inline">Trading Console</span>
           </a>
-          <span className="text-slate-800">|</span>
+          <span className="hidden sm:inline text-slate-800">|</span>
           <button 
             onClick={() => {
               if (activeTab === 'telemetry') loadAdminData();
@@ -651,76 +651,76 @@ export default function AdminDashboard() {
       </header>
 
       {/* Main Layout Grid */}
-      <main className="flex-1 flex flex-col gap-5 p-5 max-w-[1700px] mx-auto w-full">
+      <main className="flex-1 flex flex-col gap-4 md:gap-5 p-3 md:p-5 max-w-[1700px] mx-auto w-full">
         
         {/* ROW 1: KPI Statistics Metrics Cards */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           
           {/* Platform Revenue Card */}
-          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
+          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-3.5 md:p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-[0.02] text-yellow-500">
               <DollarSign className="w-24 h-24 stroke-[3]" />
             </div>
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider">House Net Earnings</span>
-              <h3 className={`text-2xl font-black font-mono tracking-tight ${stats.house_net_earnings >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <div className="space-y-0.5 md:space-y-1">
+              <span className="block text-[8px] md:text-[9px] font-black uppercase text-slate-500 tracking-wider">House Net Earnings</span>
+              <h3 className={`text-base md:text-2xl font-black font-mono tracking-tight ${stats.house_net_earnings >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                 {stats.house_net_earnings >= 0 ? '+' : ''}${stats.house_net_earnings.toFixed(2)}
               </h3>
-              <p className="text-[10px] text-slate-500 font-bold">Accumulated from loss bets</p>
+              <p className="text-[8px] md:text-[10px] text-slate-500 font-bold">Accumulated from loss bets</p>
             </div>
-            <div className="p-3 bg-emerald-950/20 border border-emerald-900/30 text-emerald-400 rounded-xl">
-              <DollarSign className="w-5 h-5" />
+            <div className="p-2 md:p-3 bg-emerald-950/20 border border-emerald-900/30 text-emerald-400 rounded-xl">
+              <DollarSign className="w-4 h-4 md:w-5 md:h-5" />
             </div>
           </div>
 
           {/* Cumulative Bet Volume Card */}
-          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Volume Bet</span>
-              <h3 className="text-2xl font-black font-mono text-white tracking-tight">
+          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-3.5 md:p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
+            <div className="space-y-0.5 md:space-y-1">
+              <span className="block text-[8px] md:text-[9px] font-black uppercase text-slate-500 tracking-wider">Total Volume Bet</span>
+              <h3 className="text-base md:text-2xl font-black font-mono text-white tracking-tight">
                 ${stats.total_volume.toFixed(2)}
               </h3>
-              <p className="text-[10px] text-slate-500 font-bold">{stats.total_bets_count} total predictions placed</p>
+              <p className="text-[8px] md:text-[10px] text-slate-500 font-bold">{stats.total_bets_count} total predictions</p>
             </div>
-            <div className="p-3 bg-yellow-950/20 border border-yellow-900/30 text-yellow-500 rounded-xl">
-              <Activity className="w-5 h-5" />
+            <div className="p-2 md:p-3 bg-yellow-950/20 border border-yellow-900/30 text-yellow-500 rounded-xl">
+              <Activity className="w-4 h-4 md:w-5 md:h-5" />
             </div>
           </div>
 
           {/* Active Bets Ticker Card */}
-          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider">Active Pending Bets</span>
-              <h3 className="text-2xl font-black font-mono text-yellow-500 tracking-tight animate-pulse">
+          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-3.5 md:p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
+            <div className="space-y-0.5 md:space-y-1">
+              <span className="block text-[8px] md:text-[9px] font-black uppercase text-slate-500 tracking-wider">Active Pending Bets</span>
+              <h3 className="text-base md:text-2xl font-black font-mono text-yellow-500 tracking-tight animate-pulse">
                 {stats.active_bets_count}
               </h3>
-              <p className="text-[10px] text-slate-500 font-bold">Currently locked in timers</p>
+              <p className="text-[8px] md:text-[10px] text-slate-500 font-bold">Locked in active timers</p>
             </div>
-            <div className="p-3 bg-indigo-950/25 border border-indigo-900/30 text-indigo-400 rounded-xl">
-              <Clock className="w-5 h-5" />
+            <div className="p-2 md:p-3 bg-indigo-950/25 border border-indigo-900/30 text-indigo-400 rounded-xl">
+              <Clock className="w-4 h-4 md:w-5 md:h-5" />
             </div>
           </div>
 
           {/* User win ratios Card */}
-          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
-            <div className="space-y-1">
-              <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider">Average User Win Rate</span>
-              <h3 className="text-2xl font-black font-mono text-white tracking-tight">
+          <div className="bg-slate-900/30 border border-slate-900/80 rounded-2xl p-3.5 md:p-5 flex items-center justify-between shadow-sm relative overflow-hidden">
+            <div className="space-y-0.5 md:space-y-1">
+              <span className="block text-[8px] md:text-[9px] font-black uppercase text-slate-500 tracking-wider">Avg User Win Rate</span>
+              <h3 className="text-base md:text-2xl font-black font-mono text-white tracking-tight">
                 {stats.win_ratio.toFixed(1)}%
               </h3>
-              <p className="text-[10px] text-slate-500 font-bold">{stats.total_registered_users} active traders registered</p>
+              <p className="text-[8px] md:text-[10px] text-slate-500 font-bold">{stats.total_registered_users} active traders</p>
             </div>
-            <div className="p-3 bg-slate-950 border border-slate-800 text-slate-400 rounded-xl">
-              <Percent className="w-5 h-5" />
+            <div className="p-2 md:p-3 bg-slate-950 border border-slate-800 text-slate-400 rounded-xl">
+              <Percent className="w-4 h-4 md:w-5 md:h-5" />
             </div>
           </div>
         </section>
 
         {/* Tab switcher Navigation */}
-        <section className="flex border-b border-slate-900/80 pb-1.5 overflow-x-auto gap-2">
+        <section className="flex border-b border-slate-900/80 pb-1.5 overflow-x-auto gap-2 scrollbar-none whitespace-nowrap">
           <button
             onClick={() => setActiveTab('telemetry')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs uppercase font-black tracking-wider transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 md:px-5 md:py-3 rounded-xl text-[10px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'telemetry'
                 ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
@@ -731,7 +731,7 @@ export default function AdminDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('users')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs uppercase font-black tracking-wider transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 md:px-5 md:py-3 rounded-xl text-[10px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'users'
                 ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
@@ -742,7 +742,7 @@ export default function AdminDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('deposits')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs uppercase font-black tracking-wider transition-all cursor-pointer relative ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 md:px-5 md:py-3 rounded-xl text-[10px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer relative whitespace-nowrap ${
               activeTab === 'deposits'
                 ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
@@ -756,7 +756,7 @@ export default function AdminDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('withdrawals')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs uppercase font-black tracking-wider transition-all cursor-pointer relative ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 md:px-5 md:py-3 rounded-xl text-[10px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer relative whitespace-nowrap ${
               activeTab === 'withdrawals'
                 ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
@@ -770,7 +770,7 @@ export default function AdminDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('gateways')}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl text-xs uppercase font-black tracking-wider transition-all cursor-pointer ${
+            className={`flex items-center gap-2 px-3.5 py-2.5 md:px-5 md:py-3 rounded-xl text-[10px] md:text-xs uppercase font-black tracking-wider transition-all cursor-pointer whitespace-nowrap ${
               activeTab === 'gateways'
                 ? 'bg-indigo-600 text-white shadow shadow-indigo-600/20'
                 : 'text-slate-400 hover:text-white hover:bg-slate-900/40'
@@ -907,7 +907,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* Right Column Monitoring */}
-              <div className="col-span-12 lg:col-span-8 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-5 flex flex-col h-[70vh] lg:h-[auto] overflow-hidden">
+              <div className="col-span-12 lg:col-span-8 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 md:p-5 flex flex-col h-[55vh] lg:h-[580px] overflow-hidden">
                 <div className="flex items-center justify-between border-b border-slate-900/80 pb-3 mb-4">
                   <div className="flex items-center gap-2">
                     <button 
@@ -944,7 +944,7 @@ export default function AdminDashboard() {
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
+                          <table className="w-full text-left text-xs min-w-[850px]">
                             <thead>
                               <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
                                 <th className="pb-2">User Email</th>
@@ -1025,7 +1025,7 @@ export default function AdminDashboard() {
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
+                          <table className="w-full text-left text-xs min-w-[850px]">
                             <thead>
                               <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
                                 <th className="pb-2">User Email</th>
@@ -1121,7 +1121,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse min-w-[850px]">
                     <thead>
                       <tr className="text-slate-500 font-bold border-b border-slate-900/80 pb-2">
                         <th className="pb-3 pl-2">ID</th>
@@ -1245,7 +1245,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse min-w-[850px]">
                     <thead>
                       <tr className="text-slate-500 font-bold border-b border-slate-900/80 pb-2">
                         <th className="pb-3 pl-2">Request ID</th>
@@ -1348,7 +1348,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse min-w-[900px]">
                     <thead>
                       <tr className="text-slate-500 font-bold border-b border-slate-900/80 pb-2">
                         <th className="pb-3 pl-2">Request ID</th>
