@@ -545,9 +545,8 @@ export default function TradingDashboard() {
     addToast('Logged out successfully.', 'success');
   };
 
-  // Place Prediction Bet Submission
-  const handlePlacePrediction = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Place Prediction Bet Submission (Instant execution)
+  const handlePlacePrediction = async (direction: 'UP' | 'DOWN') => {
     if (!token) {
       addToast('Please log in first.', 'warning');
       return;
@@ -572,7 +571,7 @@ export default function TradingDashboard() {
         },
         body: JSON.stringify({
           itemId: selectedItemId,
-          direction: betDirection,
+          direction: direction,
           amount: usdAmount.toString(),
           duration: betDuration
         })
@@ -584,7 +583,7 @@ export default function TradingDashboard() {
         return;
       }
 
-      addToast(`Prediction bet of ${formatCurrency(betVal)} placed successfully!`, 'success');
+      addToast(`Speculation of ${formatCurrency(betVal)} (${direction}) placed successfully!`, 'success');
       // Refresh local wallet and history data
       loadUserData();
     } catch (err) {
@@ -983,7 +982,7 @@ export default function TradingDashboard() {
           </div>
 
           {/* COLUMN 2: Candlestick Chart Area (Row 1 Middle) */}
-          <div className={`col-span-12 lg:col-span-6 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-3 md:p-4 flex flex-col h-[38vh] lg:h-full relative overflow-hidden ${mobileTab === 'trade' ? 'flex' : 'hidden lg:flex'}`}>
+          <div className={`col-span-12 lg:col-span-6 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-3 md:p-4 flex flex-col h-[32vh] lg:h-full relative overflow-hidden ${mobileTab === 'trade' ? 'flex' : 'hidden lg:flex'}`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 border-b border-slate-900/60 pb-3">
               <div className="flex items-center gap-3 justify-between sm:justify-start w-full sm:w-auto">
                 {selectedItem ? (
@@ -1039,55 +1038,22 @@ export default function TradingDashboard() {
           </div>
 
           {/* COLUMN 3: Prediction Console Betting Panel (Row 1-2 Right) */}
-          <div className={`col-span-12 lg:col-span-3 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 md:p-5 flex flex-col lg:h-full lg:row-span-2 overflow-y-auto lg:overflow-hidden ${mobileTab === 'trade' ? 'flex flex-1 min-h-0' : 'hidden lg:flex'}`}>
-            <div className="flex flex-col gap-3 md:gap-4 flex-1">
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+          <div className={`col-span-12 lg:col-span-3 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-3 md:p-5 flex flex-col lg:h-full lg:row-span-2 overflow-y-auto lg:overflow-hidden ${mobileTab === 'trade' ? 'flex flex-1 min-h-0' : 'hidden lg:flex'}`}>
+            <div className="flex flex-col gap-2.5 md:gap-4 flex-1">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 hidden md:flex items-center gap-2">
                 <Clock className="w-4 h-4 text-yellow-500" />
                 Prediction Console
               </h3>
 
               {selectedItem ? (
-                <form onSubmit={handlePlacePrediction} className="flex flex-col gap-4 md:gap-5 flex-1 justify-between">
-                  <div className="flex flex-col gap-3 md:gap-4">
-                    {/* Direction Toggle Pills (Green UP vs Red DOWN) */}
+                <div className="flex flex-col gap-2 md:gap-3.5 mt-1 md:mt-2 flex-1 justify-between">
+                  <div className="flex flex-col gap-2 md:gap-3.5">
+                    {/* Expiry Timeframe Selection */}
                     <div>
-                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                        1. Rate speculation
+                      <span className="block text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">
+                        1. Speculate Duration
                       </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setBetDirection('UP')}
-                          className={`py-3 px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            betDirection === 'UP'
-                              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20 stroke-[3]'
-                              : 'bg-slate-950 border-slate-900 text-emerald-500 hover:bg-slate-900'
-                          }`}
-                        >
-                          <TrendingUp className="w-4 h-4" />
-                          Up (Call)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setBetDirection('DOWN')}
-                          className={`py-3 px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                            betDirection === 'DOWN'
-                              ? 'bg-red-500 text-slate-950 border-red-400 shadow-lg shadow-red-500/20 stroke-[3]'
-                              : 'bg-slate-950 border-slate-900 text-red-500 hover:bg-slate-900'
-                          }`}
-                        >
-                          <TrendingDown className="w-4 h-4" />
-                          Down (Put)
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Expiry Timeframe Slider Selection */}
-                    <div>
-                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                        2. Bet Duration
-                      </span>
-                      <div className="grid grid-cols-4 gap-1.5">
+                      <div className="grid grid-cols-4 gap-1">
                         {[
                           { label: '30s', val: 30 },
                           { label: '1m', val: 60 },
@@ -1098,9 +1064,9 @@ export default function TradingDashboard() {
                             key={d.val}
                             type="button"
                             onClick={() => setBetDuration(d.val)}
-                            className={`py-2 px-1 rounded-lg border font-bold text-xs transition-all cursor-pointer ${
+                            className={`py-1.5 md:py-2 px-1 rounded-lg border font-bold text-xs transition-all cursor-pointer ${
                               betDuration === d.val
-                                ? 'bg-yellow-500 text-slate-950 border-yellow-400 font-extrabold'
+                                ? 'bg-yellow-500 text-slate-950 border-yellow-400 font-extrabold shadow-sm'
                                 : 'bg-slate-950 border-slate-900 text-slate-400 hover:bg-slate-900'
                             }`}
                           >
@@ -1112,33 +1078,33 @@ export default function TradingDashboard() {
 
                     {/* Bet Amount Input with Preset Pill Buttons */}
                     <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                          3. Bet Amount
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="block text-[9px] md:text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                          2. Bet Amount
                         </span>
-                        <span className="text-[10px] text-slate-500 font-bold">
+                        <span className="text-[9px] md:text-[10px] text-slate-500 font-bold">
                           Avail: {formatCurrency(convertVal(wallet.balance))}
                         </span>
                       </div>
-                      <div className="relative mb-2">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">{selectedCurrency}</span>
+                      <div className="relative mb-1.5">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-xs">{selectedCurrency}</span>
                         <input
                           type="number"
                           value={betAmount}
                           onChange={(e) => setBetAmount(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-900 hover:border-slate-800 focus:border-yellow-500 focus:outline-none rounded-xl py-2.5 pl-12 pr-4 font-black font-mono text-white text-md transition-all"
+                          className="w-full bg-slate-950 border border-slate-900 hover:border-slate-800 focus:border-yellow-500 focus:outline-none rounded-xl py-2 md:py-2.5 pl-12 pr-4 font-black font-mono text-white text-xs md:text-sm transition-all"
                           placeholder="Amount"
                           required
                           min="1"
                         />
                       </div>
-                      <div className="grid grid-cols-5 gap-1">
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
                         {['10', '50', '100', '250', '500'].map((preset) => (
                           <button
                             key={preset}
                             type="button"
                             onClick={() => setBetAmount(preset)}
-                            className="py-1.5 px-0.5 rounded bg-slate-950 border border-slate-900/60 hover:bg-slate-900 text-slate-400 hover:text-white font-bold text-[10px] transition-all cursor-pointer"
+                            className="py-1.5 px-3 rounded-lg bg-slate-950 border border-slate-900/60 hover:bg-slate-900 text-slate-400 hover:text-white font-extrabold text-[10px] transition-all cursor-pointer whitespace-nowrap"
                           >
                             +{preset}
                           </button>
@@ -1147,43 +1113,46 @@ export default function TradingDashboard() {
                     </div>
                   </div>
 
-                  {/* Summary Costs & CTA submit bet button */}
-                  <div className="flex flex-col gap-3 border-t border-slate-950 pt-3">
-                    <div className="bg-slate-950/60 border border-slate-900/80 rounded-xl p-3 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>Starting Price:</span>
-                        <span className="font-bold text-white font-mono">{formatCurrency(convertVal(curPrice))} / oz</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400">
-                        <span>Platform Payout:</span>
-                        <span className="font-extrabold text-emerald-400">85% (1.85x)</span>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-slate-900/60 pt-1.5 font-bold text-slate-300">
-                        <span>Profit on win:</span>
-                        <span className="text-emerald-400 font-black font-mono">
-                          +{formatCurrency(parseFloat(betAmount || '0') * 0.85)}
-                        </span>
-                      </div>
+                  {/* Payout Info Summary & Instant Action CTA Placement Buttons */}
+                  <div className="flex flex-col gap-2 md:gap-3 border-t border-slate-950 pt-2 md:pt-3">
+                    <div className="flex items-center justify-between bg-slate-950/40 border border-slate-900/50 rounded-xl px-3 py-2 text-[9px] md:text-[10px] font-bold text-slate-400">
+                      <span>Payout Rate: <span className="text-emerald-450">85% (1.85x)</span></span>
+                      <span className="border-l border-slate-900 h-3"></span>
+                      <span>Profit on win: <span className="text-emerald-400 font-mono">+{formatCurrency(parseFloat(betAmount || '0') * 0.85)}</span></span>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={!token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))}
-                      className={`w-full py-3.5 rounded-xl font-black uppercase text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 ${
-                        !token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))
-                          ? 'bg-slate-950 border border-slate-900 text-slate-600 cursor-not-allowed shadow-none'
-                          : betDirection === 'UP'
-                            ? 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 border-emerald-400 shadow-emerald-500/10'
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handlePlacePrediction('UP')}
+                        disabled={!token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))}
+                        className={`py-2.5 md:py-3.5 px-3 md:px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                          !token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))
+                            ? 'bg-slate-950 border-slate-900 text-slate-600 cursor-not-allowed shadow-none'
+                            : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 border-emerald-400 shadow-emerald-500/10'
+                        }`}
+                      >
+                        <TrendingUp className="w-4 h-4 stroke-[3]" />
+                        Up (Call)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handlePlacePrediction('DOWN')}
+                        disabled={!token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))}
+                        className={`py-2.5 md:py-3.5 px-3 md:px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all shadow-md cursor-pointer ${
+                          !token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))
+                            ? 'bg-slate-950 border-slate-900 text-slate-600 cursor-not-allowed shadow-none'
                             : 'bg-red-500 text-slate-950 hover:bg-red-400 border-red-400 shadow-red-500/10'
-                      }`}
-                    >
-                      {betDirection === 'UP' ? <TrendingUp className="w-4 h-4 stroke-[3]" /> : <TrendingDown className="w-4 h-4 stroke-[3]" />}
-                      Place {betDirection} Bet ({formatCurrency(parseFloat(betAmount || '0'))})
-                    </button>
+                        }`}
+                      >
+                        <TrendingDown className="w-4 h-4 stroke-[3]" />
+                        Down (Put)
+                      </button>
+                    </div>
                   </div>
-                </form>
+                </div>
               ) : (
-                <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                <div className="h-full flex items-center justify-center text-slate-500 text-xs py-8">
                   Loading prediction engine inputs...
                 </div>
               )}
