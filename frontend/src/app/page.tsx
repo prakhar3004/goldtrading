@@ -104,6 +104,7 @@ export default function TradingDashboard() {
   // Real-time updates & Highlights
   const [tickingStates, setTickingStates] = useState<{ [id: number]: 'UP' | 'DOWN' | null }>({});
   const [activeTab, setActiveTab] = useState<'active' | 'history' | 'transactions' | 'deposits' | 'withdrawals'>('active');
+  const [mobileTab, setMobileTab] = useState<'trade' | 'history' | 'wallet'>('trade');
 
   // Multi-Currency & Crypto States
   const [selectedCurrency, setSelectedCurrency] = useState<string>('USD');
@@ -493,7 +494,7 @@ export default function TradingDashboard() {
         chart.remove();
       }
     };
-  }, [selectedItemId]);
+  }, [selectedItemId, token]);
 
   // Authentication: Login/Register
   const handleAuth = async (e: React.FormEvent) => {
@@ -727,28 +728,28 @@ export default function TradingDashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased">
       {/* Header Banner */}
-      <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-tr from-yellow-500 to-amber-600 rounded-xl shadow-lg shadow-yellow-500/10">
-            <Activity className="w-5 h-5 text-slate-950" />
+      <header className="sticky top-0 z-40 border-b border-slate-900 bg-slate-950/80 backdrop-blur-md px-4 py-3 md:px-6 md:py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="p-2 bg-gradient-to-tr from-yellow-500 to-amber-600 rounded-xl shadow-lg shadow-yellow-500/10">
+            <Activity className="w-4 h-4 md:w-5 md:h-5 text-slate-950" />
           </div>
           <div>
-            <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-white via-slate-100 to-yellow-400 bg-clip-text text-transparent animate-pulse">
+            <h1 className="text-base md:text-xl font-black tracking-tight bg-gradient-to-r from-white via-slate-100 to-yellow-400 bg-clip-text text-transparent">
               KuberKhajana
             </h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Real-time Gold & Silver Predictions (Rates quoted per Troy Ounce / oz)</p>
+            <p className="hidden md:block text-[10px] text-slate-500 uppercase tracking-widest font-bold">Real-time Gold & Silver Predictions (Rates quoted per Troy Ounce / oz)</p>
           </div>
         </div>
 
         {/* Auth Panel */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           {token && user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               {/* Currency Selector */}
               <select
                 value={selectedCurrency}
                 onChange={(e) => setSelectedCurrency(e.target.value)}
-                className="bg-slate-900 border border-slate-800 text-xs text-slate-300 py-1.5 px-3 rounded-xl font-bold focus:outline-none focus:border-yellow-500 cursor-pointer"
+                className="hidden md:block bg-slate-900 border border-slate-800 text-[11px] md:text-xs text-slate-300 py-1 px-2 md:py-1.5 md:px-3 rounded-lg md:rounded-xl font-bold focus:outline-none focus:border-yellow-500 cursor-pointer"
               >
                 <option value="USD">USD ($)</option>
                 <option value="INR">INR (₹)</option>
@@ -759,55 +760,50 @@ export default function TradingDashboard() {
                 <option value="USDT">USDT</option>
               </select>
 
-              <div className="flex items-center gap-4 bg-slate-900/60 border border-slate-800/80 py-1.5 px-4 rounded-xl text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-slate-300 font-semibold">{user.email.split('@')[0]}</span>
-                  {user.role === 'ADMIN' && (
-                    <span className="text-[9px] bg-red-950 text-red-400 border border-red-900 px-1.5 py-0.5 rounded font-black uppercase">
-                      Admin
-                    </span>
-                  )}
+              {/* User Balance card */}
+              <div className="flex items-center gap-3 bg-slate-900/60 border border-slate-800/80 py-1 px-3 md:py-1.5 md:px-4 rounded-lg md:rounded-xl text-xs md:text-sm">
+                <div className="hidden sm:flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span className="text-slate-300 font-semibold max-w-[85px] truncate">{user.email.split('@')[0]}</span>
                 </div>
-                <div className="flex items-center gap-2 border-l border-slate-800 pl-4">
-                  <Wallet className="w-4 h-4 text-yellow-500" />
-                  <span className="text-slate-400">Balance:</span>
+                <div className="flex items-center gap-1.5 sm:border-l sm:border-slate-800 sm:pl-3">
+                  <Wallet className="w-3.5 h-3.5 text-yellow-500" />
                   <span className="text-emerald-400 font-bold">{formatCurrency(convertVal(wallet.balance))}</span>
-                  {wallet.locked_balance > 0 && (
-                    <span className="text-[10px] text-slate-500 pl-0.5">({formatCurrency(convertVal(wallet.locked_balance))} active)</span>
-                  )}
                 </div>
               </div>
 
+              {/* Deposit/Withdraw Buttons - hidden on very small mobile, shown on tablet/desktop */}
               <button 
                 onClick={() => setDepositModalOpen(true)}
-                className="py-2 px-3.5 text-xs bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-900/30 text-emerald-400 font-bold rounded-xl transition-all cursor-pointer shadow-sm shadow-emerald-950/5"
+                className="hidden sm:block py-1.5 px-3 text-xs bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-900/30 text-emerald-400 font-bold rounded-lg transition-all cursor-pointer"
               >
                 Deposit
               </button>
 
               <button 
                 onClick={() => setWithdrawModalOpen(true)}
-                className="py-2 px-3.5 text-xs bg-red-950/20 hover:bg-red-900/20 border border-red-900/20 hover:border-red-800/40 text-red-450 font-bold rounded-xl transition-all cursor-pointer shadow-sm"
+                className="hidden sm:block py-1.5 px-3 text-xs bg-red-950/20 hover:bg-red-900/20 border border-red-900/20 hover:border-red-800/40 text-red-450 font-bold rounded-lg transition-all cursor-pointer shadow-sm"
               >
                 Withdraw
               </button>
 
-              {user.role === 'ADMIN' && (
-                <a 
-                  href="/admin"
-                  className="py-2 px-3.5 text-xs bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-900/30 text-indigo-400 font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+              {/* Mobile Actions Container */}
+              <div className="flex items-center gap-1.5">
+                {user.role === 'ADMIN' && (
+                  <a 
+                    href="/admin"
+                    className="p-1.5 md:py-2 md:px-3 text-xs bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-900/30 text-indigo-400 font-bold rounded-lg transition-all"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button 
+                  onClick={handleLogout}
+                  className="hidden md:block p-1.5 md:py-2 md:px-3 text-xs font-semibold bg-red-950/20 hover:bg-red-900/20 border border-red-900/20 hover:border-red-800/40 text-red-400 rounded-lg transition-all cursor-pointer"
                 >
-                  <Shield className="w-3.5 h-3.5" />
-                  Dashboard
-                </a>
-              )}
-              <button 
-                onClick={handleLogout}
-                className="py-2 px-4 text-xs font-semibold bg-red-950/20 hover:bg-red-900/20 border border-red-900/20 hover:border-red-800/40 text-red-400 rounded-xl transition-all cursor-pointer"
-              >
-                Logout
-              </button>
+                  Logout
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -893,13 +889,13 @@ export default function TradingDashboard() {
           </div>
         </div>
       )}
-
       {/* Main Terminal Dashboard */}
       {token && (
-        <div className="flex-1 grid grid-cols-12 gap-4 p-4 max-w-[1700px] mx-auto w-full overflow-hidden">
+        <>
+          <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 p-2 md:p-4 max-w-[1700px] mx-auto w-full overflow-hidden h-[calc(100vh-56px-60px)] lg:h-[85vh] lg:grid-rows-[1.6fr_1fr]">
           
-          {/* COLUMN 1: Asset Selector List (Width: 3/12) */}
-          <div className="col-span-12 lg:col-span-3 flex flex-col gap-3 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 h-[auto] lg:h-[84vh] overflow-hidden">
+          {/* COLUMN 1: Asset Selector List (Width: 3/12) - Hidden on Mobile, shown on Desktop */}
+          <div className="hidden lg:flex lg:col-span-3 lg:row-span-2 flex-col gap-3 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 lg:h-full overflow-hidden">
             <div className="flex items-center justify-between mb-1">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <BarChart2 className="w-4 h-4 text-yellow-500" />
@@ -986,416 +982,83 @@ export default function TradingDashboard() {
             </div>
           </div>
 
-          {/* COLUMN 2: Candlestick Chart (Width: 6/12) */}
-          <div className="col-span-12 lg:col-span-6 flex flex-col gap-4 h-[auto] lg:h-[84vh] overflow-hidden">
-            {/* Chart Area */}
-            <div className="flex-1 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 flex flex-col min-h-[350px] lg:min-h-0 relative">
-              <div className="flex items-center justify-between mb-3 border-b border-slate-900/60 pb-3">
+          {/* COLUMN 2: Candlestick Chart Area (Row 1 Middle) */}
+          <div className={`col-span-12 lg:col-span-6 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-3 md:p-4 flex flex-col h-[38vh] lg:h-full relative overflow-hidden ${mobileTab === 'trade' ? 'flex' : 'hidden lg:flex'}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 border-b border-slate-900/60 pb-3">
+              <div className="flex items-center gap-3 justify-between sm:justify-start w-full sm:w-auto">
                 {selectedItem ? (
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-md font-black text-white tracking-wide">{selectedItem.name}</h2>
-                    <span className="text-xs text-slate-400 font-semibold bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-yellow-500" />
-                      1m Candle interval
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xs md:text-sm font-black text-white tracking-wide">{selectedItem.name}</h2>
+                    <span className="text-[10px] text-slate-400 font-semibold bg-slate-950 border border-slate-850 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-yellow-500" />
+                      1m
                     </span>
                   </div>
                 ) : (
-                  <div>Loading commodity details...</div>
+                  <div className="text-xs text-slate-500">Loading details...</div>
                 )}
-                
-                {selectedItem && (
-                  <div className="flex items-center gap-4 text-xs font-bold">
-                    <div>
-                      <span className="text-slate-500">Daily Base: </span>
-                      <span className="text-slate-300 font-semibold">{formatCurrency(convertVal(selectedItem.daily_base_price))} / oz</span>
-                    </div>
-                    <div className="border-l border-slate-800 h-4"></div>
-                    <div>
-                      <span className="text-slate-500">Last Price: </span>
-                      <span className="text-yellow-500 font-extrabold tracking-wide text-sm font-mono animate-pulse">{formatCurrency(convertVal(curPrice))} / oz</span>
-                    </div>
-                  </div>
-                )}
-              </div>
 
-              {/* Chart container */}
-              <div ref={chartContainerRef} className="w-full flex-1 min-h-[250px]"></div>
+                {/* Mobile Quick Asset Selector Tab Pills */}
+                <div className="flex lg:hidden items-center gap-1 bg-slate-950/80 p-0.5 border border-slate-900 rounded-lg">
+                  {commodities.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedItemId(item.id)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-extrabold transition-all cursor-pointer ${
+                        selectedItemId === item.id
+                          ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 font-black'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {item.id === 1 ? 'Gold' : 'Silver'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {selectedItem && (
+                <div className="flex items-center gap-3 text-xs font-bold justify-between sm:justify-end w-full sm:w-auto">
+                  <div>
+                    <span className="text-slate-500 text-[10px] uppercase font-bold">Base: </span>
+                    <span className="text-slate-350 font-semibold font-mono">{formatCurrency(convertVal(selectedItem.daily_base_price))}</span>
+                  </div>
+                  <div className="border-l border-slate-850 h-3"></div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-500 text-[10px] uppercase font-bold">Live Spot: </span>
+                    <span className="text-yellow-500 font-extrabold tracking-wide text-sm font-mono animate-pulse bg-yellow-500/5 border border-yellow-500/10 px-2 py-0.5 rounded">
+                      {formatCurrency(convertVal(curPrice))}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Bottom Tabs Panel */}
-            <div className="h-[250px] bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 flex flex-col overflow-hidden">
-              {/* Tab Header */}
-              <div className="flex items-center gap-2 border-b border-slate-900/80 pb-2 overflow-x-auto whitespace-nowrap">
-                <button 
-                  onClick={() => setActiveTab('active')}
-                  className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    activeTab === 'active' 
-                      ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
-                      : 'text-slate-400 hover:bg-slate-900'
-                  }`}
-                >
-                  Live Countdown ({activePredictions.length})
-                </button>
-                <button 
-                  onClick={() => setActiveTab('history')}
-                  className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    activeTab === 'history' 
-                      ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
-                      : 'text-slate-400 hover:bg-slate-900'
-                  }`}
-                >
-                  Resolved Logs ({resolvedPredictions.length})
-                </button>
-                <button 
-                  onClick={() => setActiveTab('transactions')}
-                  className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    activeTab === 'transactions' 
-                      ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
-                      : 'text-slate-400 hover:bg-slate-900'
-                  }`}
-                >
-                  Wallet Statements
-                </button>
-                <button 
-                  onClick={() => setActiveTab('deposits')}
-                  className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    activeTab === 'deposits' 
-                      ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
-                      : 'text-slate-400 hover:bg-slate-900'
-                  }`}
-                >
-                  Deposits ({depositRequestsList.length})
-                </button>
-                <button 
-                  onClick={() => setActiveTab('withdrawals')}
-                  className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                    activeTab === 'withdrawals' 
-                      ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
-                      : 'text-slate-400 hover:bg-slate-900'
-                  }`}
-                >
-                  Withdrawals ({withdrawalRequestsList.length})
-                </button>
-              </div>
-
-              {/* Tab Content Body */}
-              <div className="flex-1 overflow-y-auto pt-3">
-                {activeTab === 'active' && (
-                  <div className="space-y-2">
-                    {activePredictions.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
-                        <Clock className="w-5 h-5 opacity-40 text-yellow-500" />
-                        No active predictions. Speculate gold or silver above!
-                      </div>
-                    ) : (
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
-                            <th className="pb-2">Asset</th>
-                            <th className="pb-2">Direction</th>
-                            <th className="pb-2">Bet Value</th>
-                            <th className="pb-2">Entry Price</th>
-                            <th className="pb-2">Live Price</th>
-                            <th className="pb-2">Countdown</th>
-                            <th className="pb-2 text-right">Potential Payout</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {activePredictions.map((p) => {
-                            const rate = p.item_id === 1 ? goldItemPrice() : silverItemPrice();
-                            const isWin = p.direction === 'UP' ? rate > parseFloat(p.start_price) : rate < parseFloat(p.start_price);
-                            const isDraw = rate === parseFloat(p.start_price);
-                            const statusColor = isDraw ? 'text-slate-400' : (isWin ? 'text-emerald-400' : 'text-red-400');
-
-                            function goldItemPrice() {
-                              const gold = commodities.find(c => c.id === 1);
-                              return gold ? parseFloat(gold.last_price) : 0;
-                            }
-                            function silverItemPrice() {
-                              const silver = commodities.find(c => c.id === 2);
-                              return silver ? parseFloat(silver.last_price) : 0;
-                            }
-
-                            return (
-                              <tr key={p.id} className="border-b border-slate-950/40 py-2.5 font-medium">
-                                <td className="py-2.5 text-white font-bold">{p.name}</td>
-                                <td className="py-2.5">
-                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                                    p.direction === 'UP' 
-                                      ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/30' 
-                                      : 'text-red-400 bg-red-950/20 border-red-900/30'
-                                  }`}>
-                                    {p.direction === 'UP' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                    {p.direction}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 font-bold text-slate-300">{formatCurrency(convertVal(p.amount))}</td>
-                                <td className="py-2.5 text-slate-400">{formatCurrency(convertVal(p.start_price))}</td>
-                                <td className={`py-2.5 font-extrabold font-mono ${statusColor}`}>
-                                  {formatCurrency(convertVal(rate))}
-                                </td>
-                                <td className="py-2.5 text-yellow-500 font-bold flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} />
-                                  {getRemainingTime(p.expires_at)}
-                                </td>
-                                <td className="py-2.5 text-right font-black text-emerald-400 font-mono">
-                                  {formatCurrency(convertVal(parseFloat(p.amount) * (1 + parseFloat(p.payout_rate))))}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'history' && (
-                  <div className="space-y-2">
-                    {resolvedPredictions.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
-                        <Award className="w-5 h-5 opacity-40 text-yellow-500" />
-                        No resolved bets in your statement logs.
-                      </div>
-                    ) : (
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
-                            <th className="pb-2">Asset</th>
-                            <th className="pb-2">Direction</th>
-                            <th className="pb-2">Bet Amount</th>
-                            <th className="pb-2">Entry Rate</th>
-                            <th className="pb-2">Exit Rate</th>
-                            <th className="pb-2">Outcome</th>
-                            <th className="pb-2 text-right">Profit / Loss</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {resolvedPredictions.map((p) => {
-                            const isWin = p.status === 'WON';
-                            const isLoss = p.status === 'LOST';
-                            const winProfit = parseFloat(p.amount) * parseFloat(p.payout_rate);
-
-                            return (
-                              <tr key={p.id} className="border-b border-slate-950/40 py-2 font-medium">
-                                <td className="py-2 text-white font-bold">{p.name}</td>
-                                <td className="py-2">
-                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
-                                    p.direction === 'UP' 
-                                      ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/30' 
-                                      : 'text-red-400 bg-red-950/20 border-red-900/30'
-                                  }`}>
-                                    {p.direction === 'UP' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                    {p.direction}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-slate-300">{formatCurrency(convertVal(p.amount))}</td>
-                                <td className="py-2 text-slate-400">{formatCurrency(convertVal(p.start_price))}</td>
-                                <td className="py-2 text-slate-300 font-mono">{p.end_price ? formatCurrency(convertVal(p.end_price)) : '-'}</td>
-                                <td className="py-2">
-                                  <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
-                                    isWin 
-                                      ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
-                                      : isLoss 
-                                        ? 'bg-red-950 text-red-400 border-red-900' 
-                                        : 'bg-slate-950 text-slate-400 border-slate-800'
-                                  }`}>
-                                    {p.status}
-                                  </span>
-                                </td>
-                                <td className={`py-2 text-right font-black font-mono ${isWin ? 'text-emerald-400' : (isLoss ? 'text-red-400' : 'text-slate-400')}`}>
-                                  {isWin ? `+${formatCurrency(convertVal(winProfit))}` : (isLoss ? `-${formatCurrency(convertVal(p.amount))}` : '$0.00')}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'transactions' && (
-                  <div className="space-y-2">
-                    {transactions.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
-                        <Wallet className="w-5 h-5 opacity-40 text-yellow-500" />
-                        No transactions registered to your wallet yet.
-                      </div>
-                    ) : (
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
-                            <th className="pb-2">Tx ID</th>
-                            <th className="pb-2">Type</th>
-                            <th className="pb-2">Details / Ref</th>
-                            <th className="pb-2">Timestamp</th>
-                            <th className="pb-2 text-right">Ledger Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {transactions.map((tx) => {
-                            const val = parseFloat(tx.amount);
-                            const isPositive = val >= 0;
-
-                            return (
-                              <tr key={tx.id} className="border-b border-slate-950/40 py-2 font-medium">
-                                <td className="py-2 text-slate-500 font-mono">{tx.id}</td>
-                                <td className="py-2">
-                                  <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
-                                    tx.type === 'DEPOSIT' || tx.type === 'PRED_WIN' || tx.type === 'MANUAL_CREDIT'
-                                      ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
-                                      : 'bg-red-950 text-red-400 border-red-900'
-                                  }`}>
-                                    {tx.type}
-                                  </span>
-                                </td>
-                                <td className="py-2 text-slate-400 font-semibold">{tx.reference_id}</td>
-                                <td className="py-2 text-slate-500">{new Date(tx.created_at).toLocaleString()}</td>
-                                <td className={`py-2 text-right font-black font-mono ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                                  {isPositive ? '+' : ''}{formatCurrency(convertVal(val))}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'deposits' && (
-                  <div className="space-y-2">
-                    {depositRequestsList.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
-                        <Wallet className="w-5 h-5 opacity-40 text-emerald-400" />
-                        No deposit requests submitted yet.
-                      </div>
-                    ) : (
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
-                            <th className="pb-2">Request ID</th>
-                            <th className="pb-2">Amount</th>
-                            <th className="pb-2">Method</th>
-                            <th className="pb-2">Ref ID</th>
-                            <th className="pb-2">Created At</th>
-                            <th className="pb-2 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {depositRequestsList.map((r) => {
-                            const dateStr = new Date(r.created_at).toLocaleString();
-                            const symbols: any = { USD: '$', INR: '₹', EUR: '€', GBP: '£', USDT: '₮' };
-                            const sym = symbols[r.currency] || '';
-                            const formattedAmt = r.currency === 'BTC' || r.currency === 'ETH' ? `${r.amount} ${r.currency}` : `${sym}${r.amount.toFixed(2)}`;
-
-                            return (
-                              <tr key={r.id} className="border-b border-slate-950/40 py-2 font-medium">
-                                <td className="py-2 text-slate-500 font-mono">{r.id}</td>
-                                <td className="py-2 text-white font-bold">{formattedAmt}</td>
-                                <td className="py-2 text-slate-400">{r.payment_method}</td>
-                                <td className="py-2 text-slate-400 font-mono">{r.reference_id}</td>
-                                <td className="py-2 text-slate-500">{dateStr}</td>
-                                <td className="py-2 text-right">
-                                  <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
-                                    r.status === 'APPROVED' 
-                                      ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
-                                      : r.status === 'REJECTED' 
-                                        ? 'bg-red-950 text-red-400 border-red-900' 
-                                        : 'bg-yellow-950 text-yellow-400 border-yellow-900'
-                                  }`}>
-                                    {r.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-
-                {activeTab === 'withdrawals' && (
-                  <div className="space-y-2">
-                    {withdrawalRequestsList.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
-                        <Wallet className="w-5 h-5 opacity-40 text-red-400" />
-                        No withdrawal requests submitted yet.
-                      </div>
-                    ) : (
-                      <table className="w-full text-left text-xs">
-                        <thead>
-                          <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
-                            <th className="pb-2">Request ID</th>
-                            <th className="pb-2">Amount Requested</th>
-                            <th className="pb-2">Method</th>
-                            <th className="pb-2">Details</th>
-                            <th className="pb-2">Created At</th>
-                            <th className="pb-2 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {withdrawalRequestsList.map((r) => {
-                            const dateStr = new Date(r.created_at).toLocaleString();
-                            const rate = exchangeRates[r.currency] || 1.0;
-                            const amountLocal = r.amount * rate;
-                            const symbols: any = { USD: '$', INR: '₹', EUR: '€', GBP: '£', USDT: '₮' };
-                            const sym = symbols[r.currency] || '';
-                            const formattedAmt = r.currency === 'BTC' || r.currency === 'ETH' ? `${amountLocal.toFixed(6)} ${r.currency}` : `${sym}${amountLocal.toFixed(2)}`;
-
-                            return (
-                              <tr key={r.id} className="border-b border-slate-950/40 py-2 font-medium">
-                                <td className="py-2 text-slate-500 font-mono">{r.id}</td>
-                                <td className="py-2 text-white font-bold">{formattedAmt}</td>
-                                <td className="py-2 text-slate-400">{r.payment_method}</td>
-                                <td className="py-2 text-slate-450 truncate max-w-[150px]">{r.payment_details}</td>
-                                <td className="py-2 text-slate-500">{dateStr}</td>
-                                <td className="py-2 text-right">
-                                  <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
-                                    r.status === 'APPROVED' 
-                                      ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
-                                      : r.status === 'REJECTED' 
-                                        ? 'bg-red-950 text-red-400 border-red-900' 
-                                        : 'bg-yellow-950 text-yellow-400 border-yellow-900'
-                                  }`}>
-                                    {r.status}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Chart container */}
+            <div ref={chartContainerRef} className="w-full flex-1 min-h-0"></div>
           </div>
 
-          {/* COLUMN 3: Prediction Console Betting Panel (Width: 3/12) */}
-          <div className="col-span-12 lg:col-span-3 flex flex-col gap-4 h-[auto] lg:h-[84vh] overflow-hidden">
-            <div className="bg-slate-900/30 border border-slate-900/70 rounded-2xl p-5 flex flex-col gap-4 flex-1">
+          {/* COLUMN 3: Prediction Console Betting Panel (Row 1-2 Right) */}
+          <div className={`col-span-12 lg:col-span-3 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 md:p-5 flex flex-col lg:h-full lg:row-span-2 overflow-y-auto lg:overflow-hidden ${mobileTab === 'trade' ? 'flex flex-1 min-h-0' : 'hidden lg:flex'}`}>
+            <div className="flex flex-col gap-3 md:gap-4 flex-1">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-yellow-500" />
                 Prediction Console
               </h3>
 
               {selectedItem ? (
-                <form onSubmit={handlePlacePrediction} className="flex flex-col gap-5 flex-1 justify-between">
-                  <div className="flex flex-col gap-4">
+                <form onSubmit={handlePlacePrediction} className="flex flex-col gap-4 md:gap-5 flex-1 justify-between">
+                  <div className="flex flex-col gap-3 md:gap-4">
                     {/* Direction Toggle Pills (Green UP vs Red DOWN) */}
                     <div>
-                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
                         1. Rate speculation
                       </span>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => setBetDirection('UP')}
-                          className={`py-3.5 px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          className={`py-3 px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                             betDirection === 'UP'
                               ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20 stroke-[3]'
                               : 'bg-slate-950 border-slate-900 text-emerald-500 hover:bg-slate-900'
@@ -1407,7 +1070,7 @@ export default function TradingDashboard() {
                         <button
                           type="button"
                           onClick={() => setBetDirection('DOWN')}
-                          className={`py-3.5 px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                          className={`py-3 px-4 rounded-xl border font-black uppercase text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                             betDirection === 'DOWN'
                               ? 'bg-red-500 text-slate-950 border-red-400 shadow-lg shadow-red-500/20 stroke-[3]'
                               : 'bg-slate-950 border-slate-900 text-red-500 hover:bg-slate-900'
@@ -1421,7 +1084,7 @@ export default function TradingDashboard() {
 
                     {/* Expiry Timeframe Slider Selection */}
                     <div>
-                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">
+                      <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
                         2. Bet Duration
                       </span>
                       <div className="grid grid-cols-4 gap-1.5">
@@ -1449,7 +1112,7 @@ export default function TradingDashboard() {
 
                     {/* Bet Amount Input with Preset Pill Buttons */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-1.5">
                         <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                           3. Bet Amount
                         </span>
@@ -1463,7 +1126,7 @@ export default function TradingDashboard() {
                           type="number"
                           value={betAmount}
                           onChange={(e) => setBetAmount(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-900 hover:border-slate-800 focus:border-yellow-500 focus:outline-none rounded-xl py-3 pl-12 pr-4 font-black font-mono text-white text-md transition-all"
+                          className="w-full bg-slate-950 border border-slate-900 hover:border-slate-800 focus:border-yellow-500 focus:outline-none rounded-xl py-2.5 pl-12 pr-4 font-black font-mono text-white text-md transition-all"
                           placeholder="Amount"
                           required
                           min="1"
@@ -1485,8 +1148,8 @@ export default function TradingDashboard() {
                   </div>
 
                   {/* Summary Costs & CTA submit bet button */}
-                  <div className="flex flex-col gap-4 border-t border-slate-950 pt-4">
-                    <div className="bg-slate-950/60 border border-slate-900/80 rounded-xl p-3.5 space-y-2 text-xs">
+                  <div className="flex flex-col gap-3 border-t border-slate-950 pt-3">
+                    <div className="bg-slate-950/60 border border-slate-900/80 rounded-xl p-3 space-y-1.5 text-xs">
                       <div className="flex items-center justify-between text-slate-400">
                         <span>Starting Price:</span>
                         <span className="font-bold text-white font-mono">{formatCurrency(convertVal(curPrice))} / oz</span>
@@ -1495,7 +1158,7 @@ export default function TradingDashboard() {
                         <span>Platform Payout:</span>
                         <span className="font-extrabold text-emerald-400">85% (1.85x)</span>
                       </div>
-                      <div className="flex items-center justify-between border-t border-slate-900/60 pt-2 font-bold text-slate-300">
+                      <div className="flex items-center justify-between border-t border-slate-900/60 pt-1.5 font-bold text-slate-300">
                         <span>Profit on win:</span>
                         <span className="text-emerald-400 font-black font-mono">
                           +{formatCurrency(parseFloat(betAmount || '0') * 0.85)}
@@ -1506,7 +1169,7 @@ export default function TradingDashboard() {
                     <button
                       type="submit"
                       disabled={!token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))}
-                      className={`w-full py-4 rounded-xl font-black uppercase text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 ${
+                      className={`w-full py-3.5 rounded-xl font-black uppercase text-sm transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 ${
                         !token || wallet.balance < (parseFloat(betAmount || '0') / (exchangeRates[selectedCurrency] || 1.0))
                           ? 'bg-slate-950 border border-slate-900 text-slate-600 cursor-not-allowed shadow-none'
                           : betDirection === 'UP'
@@ -1526,8 +1189,523 @@ export default function TradingDashboard() {
               )}
             </div>
           </div>
+
+          {/* COLUMN 4: Bottom Tabs Panel (Row 2 Middle) */}
+          <div className={`col-span-12 lg:col-span-6 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 flex flex-col lg:h-full overflow-hidden ${mobileTab === 'history' ? 'flex flex-1 h-full' : 'hidden lg:flex'}`}>
+            {/* Tab Header */}
+            <div className="flex items-center gap-2 border-b border-slate-900/80 pb-2 overflow-x-auto whitespace-nowrap scrollbar-none">
+              <button 
+                onClick={() => setActiveTab('active')}
+                className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'active' 
+                    ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
+                    : 'text-slate-400 hover:bg-slate-900'
+                }`}
+              >
+                Live Countdown ({activePredictions.length})
+              </button>
+              <button 
+                onClick={() => setActiveTab('history')}
+                className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'history' 
+                    ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
+                    : 'text-slate-400 hover:bg-slate-900'
+                }`}
+              >
+                Resolved Logs ({resolvedPredictions.length})
+              </button>
+              <button 
+                onClick={() => setActiveTab('transactions')}
+                className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'transactions' 
+                    ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
+                    : 'text-slate-400 hover:bg-slate-900'
+                }`}
+              >
+                Wallet Statements
+              </button>
+              <button 
+                onClick={() => setActiveTab('deposits')}
+                className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'deposits' 
+                    ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
+                    : 'text-slate-400 hover:bg-slate-900'
+                }`}
+              >
+                Deposits ({depositRequestsList.length})
+              </button>
+              <button 
+                onClick={() => setActiveTab('withdrawals')}
+                className={`text-[10px] uppercase font-bold tracking-widest px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'withdrawals' 
+                    ? 'bg-yellow-500 text-slate-950 shadow-md shadow-yellow-500/5' 
+                    : 'text-slate-400 hover:bg-slate-900'
+                }`}
+              >
+                Withdrawals ({withdrawalRequestsList.length})
+              </button>
+            </div>
+
+            {/* Tab Content Body */}
+            <div className="flex-1 overflow-y-auto pt-3 scrollbar-none">
+              {activeTab === 'active' && (
+                <div className="space-y-2">
+                  {activePredictions.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
+                      <Clock className="w-5 h-5 opacity-40 text-yellow-500" />
+                      No active predictions. Speculate gold or silver above!
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
+                          <th className="pb-2">Asset</th>
+                          <th className="pb-2">Direction</th>
+                          <th className="pb-2">Bet Value</th>
+                          <th className="pb-2">Entry Price</th>
+                          <th className="pb-2">Live Price</th>
+                          <th className="pb-2">Countdown</th>
+                          <th className="pb-2 text-right">Potential Payout</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activePredictions.map((p) => {
+                          const rate = p.item_id === 1 ? goldItemPrice() : silverItemPrice();
+                          const isWin = p.direction === 'UP' ? rate > parseFloat(p.start_price) : rate < parseFloat(p.start_price);
+                          const isDraw = rate === parseFloat(p.start_price);
+                          const statusColor = isDraw ? 'text-slate-400' : (isWin ? 'text-emerald-400' : 'text-red-400');
+
+                          function goldItemPrice() {
+                            const gold = commodities.find(c => c.id === 1);
+                            return gold ? parseFloat(gold.last_price) : 0;
+                          }
+                          function silverItemPrice() {
+                            const silver = commodities.find(c => c.id === 2);
+                            return silver ? parseFloat(silver.last_price) : 0;
+                          }
+
+                          return (
+                            <tr key={p.id} className="border-b border-slate-950/40 py-2.5 font-medium">
+                              <td className="py-2.5 text-white font-bold">{p.name}</td>
+                              <td className="py-2.5">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                  p.direction === 'UP' 
+                                    ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/30' 
+                                    : 'text-red-400 bg-red-950/20 border-red-900/30'
+                                }`}>
+                                  {p.direction === 'UP' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                  {p.direction}
+                                </span>
+                              </td>
+                              <td className="py-2.5 font-bold text-slate-300">{formatCurrency(convertVal(p.amount))}</td>
+                              <td className="py-2.5 text-slate-400">{formatCurrency(convertVal(p.start_price))}</td>
+                              <td className={`py-2.5 font-extrabold font-mono ${statusColor}`}>
+                                {formatCurrency(convertVal(rate))}
+                              </td>
+                              <td className="py-2.5 text-yellow-500 font-bold flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '4s' }} />
+                                {getRemainingTime(p.expires_at)}
+                              </td>
+                              <td className="py-2.5 text-right font-black text-emerald-400 font-mono">
+                                {formatCurrency(convertVal(parseFloat(p.amount) * (1 + parseFloat(p.payout_rate))))}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'history' && (
+                <div className="space-y-2">
+                  {resolvedPredictions.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
+                      <Award className="w-5 h-5 opacity-40 text-yellow-500" />
+                      No resolved bets in your statement logs.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
+                          <th className="pb-2">Asset</th>
+                          <th className="pb-2">Direction</th>
+                          <th className="pb-2">Bet Amount</th>
+                          <th className="pb-2">Entry Rate</th>
+                          <th className="pb-2">Exit Rate</th>
+                          <th className="pb-2">Outcome</th>
+                          <th className="pb-2 text-right">Profit / Loss</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resolvedPredictions.map((p) => {
+                          const isWin = p.status === 'WON';
+                          const isLoss = p.status === 'LOST';
+                          const winProfit = parseFloat(p.amount) * parseFloat(p.payout_rate);
+
+                          return (
+                            <tr key={p.id} className="border-b border-slate-950/40 py-2 font-medium">
+                              <td className="py-2 text-white font-bold">{p.name}</td>
+                              <td className="py-2">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+                                  p.direction === 'UP' 
+                                    ? 'text-emerald-400 bg-emerald-950/20 border-emerald-900/30' 
+                                    : 'text-red-400 bg-red-950/20 border-red-900/30'
+                                }`}>
+                                  {p.direction === 'UP' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                  {p.direction}
+                                </span>
+                              </td>
+                              <td className="py-2 text-slate-300">{formatCurrency(convertVal(p.amount))}</td>
+                              <td className="py-2 text-slate-400">{formatCurrency(convertVal(p.start_price))}</td>
+                              <td className="py-2 text-slate-300 font-mono">{p.end_price ? formatCurrency(convertVal(p.end_price)) : '-'}</td>
+                              <td className="py-2">
+                                <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
+                                  isWin 
+                                    ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
+                                    : isLoss 
+                                      ? 'bg-red-950 text-red-400 border-red-900' 
+                                      : 'bg-slate-950 text-slate-400 border-slate-800'
+                                }`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td className={`py-2 text-right font-black font-mono ${isWin ? 'text-emerald-400' : (isLoss ? 'text-red-400' : 'text-slate-400')}`}>
+                                {isWin ? `+${formatCurrency(convertVal(winProfit))}` : (isLoss ? `-${formatCurrency(convertVal(p.amount))}` : '$0.00')}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'transactions' && (
+                <div className="space-y-2">
+                  {transactions.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
+                      <Wallet className="w-5 h-5 opacity-40 text-yellow-500" />
+                      No transactions registered to your wallet yet.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
+                          <th className="pb-2">Tx ID</th>
+                          <th className="pb-2">Type</th>
+                          <th className="pb-2">Details / Ref</th>
+                          <th className="pb-2">Timestamp</th>
+                          <th className="pb-2 text-right">Ledger Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transactions.map((tx) => {
+                          const val = parseFloat(tx.amount);
+                          const isPositive = val >= 0;
+
+                          return (
+                            <tr key={tx.id} className="border-b border-slate-950/40 py-2 font-medium">
+                              <td className="py-2 text-slate-500 font-mono">{tx.id}</td>
+                              <td className="py-2">
+                                <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
+                                  tx.type === 'DEPOSIT' || tx.type === 'PRED_WIN' || tx.type === 'MANUAL_CREDIT'
+                                    ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
+                                    : 'bg-red-950 text-red-400 border-red-900'
+                                }`}>
+                                  {tx.type}
+                                </span>
+                              </td>
+                              <td className="py-2 text-slate-400 font-semibold">{tx.reference_id}</td>
+                              <td className="py-2 text-slate-500">{new Date(tx.created_at).toLocaleString()}</td>
+                              <td className={`py-2 text-right font-black font-mono ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {isPositive ? '+' : ''}{formatCurrency(convertVal(val))}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'deposits' && (
+                <div className="space-y-2">
+                  {depositRequestsList.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
+                      <Wallet className="w-5 h-5 opacity-40 text-emerald-400" />
+                      No deposit requests submitted yet.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
+                          <th className="pb-2">Request ID</th>
+                          <th className="pb-2">Amount</th>
+                          <th className="pb-2">Method</th>
+                          <th className="pb-2">Ref ID</th>
+                          <th className="pb-2">Created At</th>
+                          <th className="pb-2 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {depositRequestsList.map((r) => {
+                          const dateStr = new Date(r.created_at).toLocaleString();
+                          const symbols: any = { USD: '$', INR: '₹', EUR: '€', GBP: '£', USDT: '₮' };
+                          const sym = symbols[r.currency] || '';
+                          const formattedAmt = r.currency === 'BTC' || r.currency === 'ETH' ? `${r.amount} ${r.currency}` : `${sym}${r.amount.toFixed(2)}`;
+
+                          return (
+                            <tr key={r.id} className="border-b border-slate-950/40 py-2 font-medium">
+                              <td className="py-2 text-slate-500 font-mono">{r.id}</td>
+                              <td className="py-2 text-white font-bold">{formattedAmt}</td>
+                              <td className="py-2 text-slate-400">{r.payment_method}</td>
+                              <td className="py-2 text-slate-400 font-mono">{r.reference_id}</td>
+                              <td className="py-2 text-slate-500">{dateStr}</td>
+                              <td className="py-2 text-right">
+                                <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
+                                  r.status === 'APPROVED' 
+                                    ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
+                                    : r.status === 'REJECTED' 
+                                      ? 'bg-red-950 text-red-400 border-red-900' 
+                                      : 'bg-yellow-950 text-yellow-400 border-yellow-900'
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'withdrawals' && (
+                <div className="space-y-2">
+                  {withdrawalRequestsList.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-500 text-xs py-8">
+                      <Wallet className="w-5 h-5 opacity-40 text-red-400" />
+                      No withdrawal requests submitted yet.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="text-slate-500 font-bold border-b border-slate-900 pb-2">
+                          <th className="pb-2">Request ID</th>
+                          <th className="pb-2">Amount Requested</th>
+                          <th className="pb-2">Method</th>
+                          <th className="pb-2">Details</th>
+                          <th className="pb-2">Created At</th>
+                          <th className="pb-2 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {withdrawalRequestsList.map((r) => {
+                          const dateStr = new Date(r.created_at).toLocaleString();
+                          const rate = exchangeRates[r.currency] || 1.0;
+                          const amountLocal = r.amount * rate;
+                          const symbols: any = { USD: '$', INR: '₹', EUR: '€', GBP: '£', USDT: '₮' };
+                          const sym = symbols[r.currency] || '';
+                          const formattedAmt = r.currency === 'BTC' || r.currency === 'ETH' ? `${amountLocal.toFixed(6)} ${r.currency}` : `${sym}${amountLocal.toFixed(2)}`;
+
+                          return (
+                            <tr key={r.id} className="border-b border-slate-950/40 py-2 font-medium">
+                              <td className="py-2 text-slate-500 font-mono">{r.id}</td>
+                              <td className="py-2 text-white font-bold">{formattedAmt}</td>
+                              <td className="py-2 text-slate-400">{r.payment_method}</td>
+                              <td className="py-2 text-slate-450 truncate max-w-[150px]">{r.payment_details}</td>
+                              <td className="py-2 text-slate-500">{dateStr}</td>
+                              <td className="py-2 text-right">
+                                <span className={`px-2 py-0.5 rounded font-black text-[9px] uppercase border ${
+                                  r.status === 'APPROVED' 
+                                    ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
+                                    : r.status === 'REJECTED' 
+                                      ? 'bg-red-950 text-red-400 border-red-900' 
+                                      : 'bg-yellow-950 text-yellow-400 border-yellow-900'
+                                }`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* MOBILE-ONLY WALLET PANEL */}
+          {mobileTab === 'wallet' && (
+            <div className="lg:hidden col-span-12 bg-slate-900/30 border border-slate-900/70 rounded-2xl p-4 flex flex-col gap-4 overflow-y-auto flex-1 min-h-0">
+              <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-yellow-500" />
+                  Account & Wallet
+                </h3>
+                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/40 border border-emerald-900/30 px-2 py-0.5 rounded-full">
+                  Active Session
+                </span>
+              </div>
+
+              {/* Balance card */}
+              <div className="bg-slate-950/60 border border-slate-850 p-5 rounded-2xl flex flex-col gap-3">
+                <div>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Available Balance</span>
+                  <span className="text-3xl font-black text-white tracking-wide mt-1 block">
+                    {formatCurrency(convertVal(wallet.balance))}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <button
+                    onClick={() => setDepositModalOpen(true)}
+                    className="py-3 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-center cursor-pointer transition-all shadow-md text-xs uppercase"
+                  >
+                    Deposit
+                  </button>
+                  <button
+                    onClick={() => setWithdrawModalOpen(true)}
+                    className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-white font-black rounded-xl text-center cursor-pointer transition-all border border-slate-700 text-xs uppercase"
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              </div>
+
+              {/* Currency Selector */}
+              <div className="bg-slate-950/30 border border-slate-900 p-4 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Trading Currency</span>
+                  <span className="text-xs text-slate-300 font-medium mt-0.5 block">Select display currency</span>
+                </div>
+                <select
+                  value={selectedCurrency}
+                  onChange={(e) => setSelectedCurrency(e.target.value)}
+                  className="bg-slate-900 border border-slate-800 text-xs text-slate-300 py-2 px-4 rounded-xl font-bold focus:outline-none focus:border-yellow-500 cursor-pointer"
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="EUR">EUR (€)</option>
+                  <option value="GBP">GBP (£)</option>
+                  <option value="BTC">BTC</option>
+                  <option value="ETH">ETH</option>
+                  <option value="USDT">USDT</option>
+                </select>
+              </div>
+
+              {/* User Statistics Overview Summary Card */}
+              <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-4 flex flex-col gap-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-yellow-500" />
+                  Your Betting Stats
+                </h4>
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-900">
+                    <span className="block text-[8px] uppercase tracking-wider text-slate-500 font-bold">Total Bets</span>
+                    <span className="text-xs font-black text-white">{userStats.total_predictions}</span>
+                  </div>
+                  <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-900">
+                    <span className="block text-[8px] uppercase tracking-wider text-slate-500 font-bold">Win / Loss</span>
+                    <span className="text-xs font-black text-emerald-400">
+                      {userStats.won_predictions} <span className="text-slate-500">/</span> {userStats.lost_predictions}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-900 pt-2 text-xs">
+                  <span className="text-slate-400 font-semibold">Net Profit:</span>
+                  <span className={`font-black tracking-wide ${userStats.total_profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {userStats.total_profit >= 0 ? '+' : ''}{formatCurrency(convertVal(userStats.total_profit))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Wallet Statement table */}
+              <div className="bg-slate-950/30 border border-slate-900 rounded-xl p-4 flex flex-col gap-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                  Statement History
+                </h4>
+                {transactions.length === 0 ? (
+                  <div className="text-center text-slate-500 text-xs py-4">
+                    No transactions registered.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {transactions.slice(0, 5).map((tx) => {
+                      const val = parseFloat(tx.amount);
+                      const isPositive = val >= 0;
+                      return (
+                        <div key={tx.id} className="flex justify-between items-center text-xs py-1 border-b border-slate-900/40">
+                          <div>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase mr-2 ${
+                              tx.type === 'DEPOSIT' || tx.type === 'PRED_WIN' || tx.type === 'MANUAL_CREDIT'
+                                ? 'bg-emerald-950 text-emerald-400 border-emerald-900' 
+                                : 'bg-red-950 text-red-400 border-red-900'
+                            }`}>
+                              {tx.type}
+                            </span>
+                            <span className="text-slate-400 font-mono text-[10px]">{tx.id.substring(0, 8)}</span>
+                          </div>
+                          <span className={`font-bold font-mono ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {isPositive ? '+' : ''}{formatCurrency(convertVal(val))}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="w-full py-3.5 bg-red-950/20 hover:bg-red-900/20 border border-red-900/20 text-red-400 font-bold rounded-xl text-center text-xs uppercase cursor-pointer"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+
         </div>
-      )}
+
+        {/* Mobile Bottom Navigation Bar */}
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-45 bg-slate-950/95 backdrop-blur-md border-t border-slate-900 flex items-center justify-around py-3 px-4 shadow-2xl">
+          <button
+            onClick={() => setMobileTab('trade')}
+            className={`flex flex-col items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+              mobileTab === 'trade' ? 'text-yellow-500' : 'text-slate-500 hover:text-slate-350'
+            }`}
+          >
+            <Activity className="w-5 h-5" />
+            Trade
+          </button>
+          <button
+            onClick={() => setMobileTab('history')}
+            className={`flex flex-col items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+              mobileTab === 'history' ? 'text-yellow-500' : 'text-slate-500 hover:text-slate-350'
+            }`}
+          >
+            <Clock className="w-5 h-5" />
+            History
+          </button>
+          <button
+            onClick={() => setMobileTab('wallet')}
+            className={`flex flex-col items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+              mobileTab === 'wallet' ? 'text-yellow-500' : 'text-slate-500 hover:text-slate-350'
+            }`}
+          >
+            <Wallet className="w-5 h-5" />
+            Wallet
+          </button>
+        </div>
+      </>
+    )}
 
       {/* RESOLUTION POPUP MODAL (CONGRATULATIONS / LOSS REPORT) */}
       {resolutionModal && resolutionModal.show && (
