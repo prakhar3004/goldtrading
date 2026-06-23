@@ -80,6 +80,13 @@ export default function AdminDashboard() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<{ id: number; email: string; role: string } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Toast notification state
   interface Toast {
@@ -120,6 +127,14 @@ export default function AdminDashboard() {
   const [payoutRate, setPayoutRate] = useState('0.85');
   const [houseProtection, setHouseProtection] = useState('0.45');
   const [configMessage, setConfigMessage] = useState<string | null>(null);
+
+  // Price Manipulation States
+  const [goldPriceType, setGoldPriceType] = useState<'LIVE' | 'MANUAL'>('LIVE');
+  const [goldManualPrice, setGoldManualPrice] = useState('2400.00');
+  const [goldPriceOffset, setGoldPriceOffset] = useState('0.00');
+  const [silverPriceType, setSilverPriceType] = useState<'LIVE' | 'MANUAL'>('LIVE');
+  const [silverManualPrice, setSilverManualPrice] = useState('30.00');
+  const [silverPriceOffset, setSilverPriceOffset] = useState('0.00');
 
   // Bets tracking state
   const [activeBets, setActiveBets] = useState<LiveBet[]>([]);
@@ -164,6 +179,7 @@ export default function AdminDashboard() {
         setIsAdmin(true);
       }
     }
+    setLoadingAuth(false);
   }, []);
 
   // Fetch initial Admin Overview & configs
@@ -189,6 +205,12 @@ export default function AdminDashboard() {
         setSilverTrend(configData.silver_trend);
         setPayoutRate(configData.payout_rate.toString());
         setHouseProtection(configData.house_protection_win_rate.toString());
+        setGoldPriceType(configData.gold_price_type || 'LIVE');
+        setGoldManualPrice((configData.gold_manual_price ?? 2400.00).toString());
+        setGoldPriceOffset((configData.gold_price_offset ?? 0.00).toString());
+        setSilverPriceType(configData.silver_price_type || 'LIVE');
+        setSilverManualPrice((configData.silver_manual_price ?? 30.00).toString());
+        setSilverPriceOffset((configData.silver_price_offset ?? 0.00).toString());
       }
 
       // 3. Get Live bets
@@ -349,7 +371,13 @@ export default function AdminDashboard() {
           goldTrend,
           silverTrend,
           payoutRate,
-          houseProtectionWinRate: houseProtection
+          houseProtectionWinRate: houseProtection,
+          goldPriceType,
+          goldManualPrice: parseFloat(goldManualPrice),
+          goldPriceOffset: parseFloat(goldPriceOffset),
+          silverPriceType,
+          silverManualPrice: parseFloat(silverManualPrice),
+          silverPriceOffset: parseFloat(silverPriceOffset)
         })
       });
 
@@ -452,99 +480,123 @@ export default function AdminDashboard() {
   const handleToggleBan = async (userToToggle: UserManage) => {
     if (!token) return;
     const actionName = userToToggle.is_banned ? 'unban' : 'ban';
-    if (!confirm(`Are you sure you want to ${actionName} this user account (${userToToggle.email})?`)) return;
-    try {
-      const res = await fetch(`${API_BASE}/admin/users/${userToToggle.id}/ban`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ banned: !userToToggle.is_banned })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        addToast(data.message || `User account successfully ${userToToggle.is_banned ? 'unbanned' : 'banned'}.`, 'success');
-        loadUsers();
-      } else {
-        addToast(`Error: ${data.error}`, 'error');
+    setConfirmModal({
+      show: true,
+      title: `${userToToggle.is_banned ? 'Unban' : 'Ban'} User`,
+      message: `Are you sure you want to ${actionName} this user account (${userToToggle.email})?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/admin/users/${userToToggle.id}/ban`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ banned: !userToToggle.is_banned })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            addToast(data.message || `User account successfully ${userToToggle.is_banned ? 'unbanned' : 'banned'}.`, 'success');
+            loadUsers();
+          } else {
+            addToast(`Error: ${data.error}`, 'error');
+          }
+        } catch (err) {
+          addToast('Failed to update ban status.', 'error');
+        }
       }
-    } catch (err) {
-      addToast('Failed to update ban status.', 'error');
-    }
+    });
   };
 
   // Permanently Delete User Account
   const handleDeleteUser = async (userToDelete: UserManage) => {
     if (!token) return;
-    if (!confirm(`WARNING: Are you sure you want to PERMANENTLY delete user ${userToDelete.email}? This will delete all predictions, transactions, and requests associated with this account. This action cannot be undone.`)) return;
-    try {
-      const res = await fetch(`${API_BASE}/admin/users/${userToDelete.id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`
+    setConfirmModal({
+      show: true,
+      title: "Delete Account",
+      message: `WARNING: Are you sure you want to PERMANENTLY delete user ${userToDelete.email}? This will delete all predictions, transactions, and requests associated with this account. This action cannot be undone.`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/admin/users/${userToDelete.id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          const data = await res.json();
+          if (res.ok) {
+            addToast(data.message || 'User account and associated data successfully deleted.', 'success');
+            loadUsers();
+          } else {
+            addToast(`Error: ${data.error}`, 'error');
+          }
+        } catch (err) {
+          addToast('Failed to delete user.', 'error');
         }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        addToast(data.message || 'User account and associated data successfully deleted.', 'success');
-        loadUsers();
-      } else {
-        addToast(`Error: ${data.error}`, 'error');
       }
-    } catch (err) {
-      addToast('Failed to delete user.', 'error');
-    }
+    });
   };
 
   // Resolve Deposit Request
   const handleResolveDeposit = async (id: string, action: 'APPROVE' | 'REJECT') => {
     if (!token) return;
-    if (!confirm(`Are you sure you want to ${action.toLowerCase()} this deposit request?`)) return;
-    try {
-      const res = await fetch(`${API_BASE}/admin/deposits/${id}/resolve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ action })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        addToast(data.message, 'success');
-        loadDeposits();
-      } else {
-        addToast(`Error: ${data.error}`, 'error');
+    setConfirmModal({
+      show: true,
+      title: `${action === 'APPROVE' ? 'Approve' : 'Reject'} Deposit`,
+      message: `Are you sure you want to ${action.toLowerCase()} this deposit request?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/admin/deposits/${id}/resolve`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ action })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            addToast(data.message, 'success');
+            loadDeposits();
+          } else {
+            addToast(`Error: ${data.error}`, 'error');
+          }
+        } catch (err) {
+          addToast('Failed to resolve deposit request.', 'error');
+        }
       }
-    } catch (err) {
-      addToast('Failed to resolve deposit request.', 'error');
-    }
+    });
   };
 
   // Resolve Withdrawal Request
   const handleResolveWithdrawal = async (id: string, action: 'APPROVE' | 'REJECT') => {
     if (!token) return;
-    if (!confirm(`Are you sure you want to ${action.toLowerCase()} this withdrawal request?`)) return;
-    try {
-      const res = await fetch(`${API_BASE}/admin/withdrawals/${id}/resolve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ action })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        addToast(data.message, 'success');
-        loadWithdrawals();
-      } else {
-        addToast(`Error: ${data.error}`, 'error');
+    setConfirmModal({
+      show: true,
+      title: `${action === 'APPROVE' ? 'Approve' : 'Reject'} Withdrawal`,
+      message: `Are you sure you want to ${action.toLowerCase()} this withdrawal request?`,
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`${API_BASE}/admin/withdrawals/${id}/resolve`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ action })
+          });
+          const data = await res.json();
+          if (res.ok) {
+            addToast(data.message, 'success');
+            loadWithdrawals();
+          } else {
+            addToast(`Error: ${data.error}`, 'error');
+          }
+        } catch (err) {
+          addToast('Failed to resolve withdrawal request.', 'error');
+        }
       }
-    } catch (err) {
-      addToast('Failed to resolve withdrawal request.', 'error');
-    }
+    });
   };
 
   // Save Gateway Address configuration
@@ -587,6 +639,17 @@ export default function AdminDashboard() {
     const seconds = Math.floor(diff / 1000);
     return `${seconds}s`;
   };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 font-sans antialiased">
+        <div className="flex flex-col items-center gap-3">
+          <Activity className="w-10 h-10 text-indigo-500 animate-pulse" />
+          <span className="text-xs text-slate-500 font-bold uppercase tracking-widest animate-pulse">KuberKhajana Admin</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!token || !isAdmin) {
     return (
@@ -803,64 +866,188 @@ export default function AdminDashboard() {
                   )}
 
                   <form onSubmit={handleSaveConfig} className="space-y-4">
-                    <div>
-                      <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Gold (XAU/USD) Trend skew</label>
-                      <select 
-                        value={goldTrend}
-                        onChange={(e: any) => setGoldTrend(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-xl py-2.5 px-3 text-xs text-white font-bold transition-all"
-                      >
-                        <option value="NEUTRAL">NEUTRAL (Random Walk)</option>
-                        <option value="UP">BULLISH (Upward Drift)</option>
-                        <option value="DOWN">BEARISH (Downward Drift)</option>
-                      </select>
-                    </div>
+                    {/* Payout Configs */}
+                    <div className="border-b border-slate-900/60 pb-3">
+                      <h4 className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-3">1. Payout & Risk Control</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Default Payout Multiplier</label>
+                            <span className="text-xs text-yellow-500 font-extrabold font-mono">{(parseFloat(payoutRate) * 100).toFixed(0)}%</span>
+                          </div>
+                          <input 
+                            type="range"
+                            min="0.50"
+                            max="1.50"
+                            step="0.05"
+                            value={payoutRate}
+                            onChange={(e) => setPayoutRate(e.target.value)}
+                            className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                          />
+                        </div>
 
-                    <div>
-                      <label className="block text-[9px] font-black uppercase text-slate-500 tracking-wider mb-2">Silver (XAG/USD) Trend skew</label>
-                      <select 
-                        value={silverTrend}
-                        onChange={(e: any) => setSilverTrend(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-xl py-2.5 px-3 text-xs text-white font-bold transition-all"
-                      >
-                        <option value="NEUTRAL">NEUTRAL (Random Walk)</option>
-                        <option value="UP">BULLISH (Upward Drift)</option>
-                        <option value="DOWN">BEARISH (Downward Drift)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-wider">Default Payout Multiplier</label>
-                        <span className="text-xs text-yellow-500 font-extrabold font-mono">{(parseFloat(payoutRate) * 100).toFixed(0)}%</span>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-[9px] font-black uppercase text-slate-500 tracking-wider">House Protection Threshold</label>
+                            <span className="text-xs text-indigo-400 font-extrabold font-mono">{(parseFloat(houseProtection) * 100).toFixed(0)}%</span>
+                          </div>
+                          <input 
+                            type="range"
+                            min="0.00"
+                            max="1.00"
+                            step="0.05"
+                            value={houseProtection}
+                            onChange={(e) => setHouseProtection(e.target.value)}
+                            className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                          />
+                        </div>
                       </div>
-                      <input 
-                        type="range"
-                        min="0.50"
-                        max="1.50"
-                        step="0.05"
-                        value={payoutRate}
-                        onChange={(e) => setPayoutRate(e.target.value)}
-                        className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                      />
-                      <span className="block text-[8px] text-slate-600 mt-1 font-semibold">User receives: bet + multiplier (e.g. $100 &rarr; $185 on 85%)</span>
                     </div>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[9px] font-black uppercase text-slate-500 tracking-wider">House Protection Threshold</label>
-                        <span className="text-xs text-indigo-400 font-extrabold font-mono">{(parseFloat(houseProtection) * 100).toFixed(0)}%</span>
+                    {/* Gold Controls */}
+                    <div className="border-b border-slate-900/60 pb-3">
+                      <h4 className="text-[10px] font-black uppercase text-yellow-500 tracking-widest mb-3">2. Gold (XAU/USD) Rate Controls</h4>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="col-span-2">
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Feed Source Type</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setGoldPriceType('LIVE')}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                                goldPriceType === 'LIVE'
+                                  ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                                  : 'bg-slate-950 border-slate-900 text-slate-500'
+                              }`}
+                            >
+                              Live API Feed
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setGoldPriceType('MANUAL')}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                                goldPriceType === 'MANUAL'
+                                  ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                                  : 'bg-slate-950 border-slate-900 text-slate-500'
+                              }`}
+                            >
+                              Manual Price
+                            </button>
+                          </div>
+                        </div>
+
+                        {goldPriceType === 'MANUAL' && (
+                          <div className="col-span-2">
+                            <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Manual Base Price ($/oz)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={goldManualPrice}
+                              onChange={(e) => setGoldManualPrice(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
+                              placeholder="2400.00"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Price Offset ($)</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={goldPriceOffset}
+                            onChange={(e) => setGoldPriceOffset(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
+                            placeholder="0.00"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Trend Direction</label>
+                          <select
+                            value={goldTrend}
+                            onChange={(e: any) => setGoldTrend(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-bold"
+                          >
+                            <option value="NEUTRAL">Neutral</option>
+                            <option value="UP">Bullish (Up)</option>
+                            <option value="DOWN">Bearish (Down)</option>
+                          </select>
+                        </div>
                       </div>
-                      <input 
-                        type="range"
-                        min="0.00"
-                        max="1.00"
-                        step="0.05"
-                        value={houseProtection}
-                        onChange={(e) => setHouseProtection(e.target.value)}
-                        className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                      />
-                      <span className="block text-[8px] text-slate-600 mt-1 font-semibold">Max target user win-rate. Lower threshold = more aggressive house defense.</span>
+                    </div>
+
+                    {/* Silver Controls */}
+                    <div className="pb-2">
+                      <h4 className="text-[10px] font-black uppercase text-slate-300 tracking-widest mb-3">3. Silver (XAG/USD) Rate Controls</h4>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="col-span-2">
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Feed Source Type</label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSilverPriceType('LIVE')}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                                silverPriceType === 'LIVE'
+                                  ? 'bg-slate-300/20 text-slate-200 border-slate-300/30'
+                                  : 'bg-slate-950 border-slate-900 text-slate-500'
+                              }`}
+                            >
+                              Live API Feed
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSilverPriceType('MANUAL')}
+                              className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase border transition-all cursor-pointer ${
+                                silverPriceType === 'MANUAL'
+                                  ? 'bg-slate-300/20 text-slate-200 border-slate-300/30'
+                                  : 'bg-slate-950 border-slate-900 text-slate-500'
+                              }`}
+                            >
+                              Manual Price
+                            </button>
+                          </div>
+                        </div>
+
+                        {silverPriceType === 'MANUAL' && (
+                          <div className="col-span-2">
+                            <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Manual Base Price ($/oz)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={silverManualPrice}
+                              onChange={(e) => setSilverManualPrice(e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
+                              placeholder="30.00"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Price Offset ($)</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={silverPriceOffset}
+                            onChange={(e) => setSilverPriceOffset(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2.5 text-[11px] text-white font-mono font-bold"
+                            placeholder="0.00"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[8px] font-bold uppercase text-slate-500 tracking-wider mb-1">Trend Direction</label>
+                          <select
+                            value={silverTrend}
+                            onChange={(e: any) => setSilverTrend(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-900 focus:border-indigo-500 focus:outline-none rounded-lg py-1.5 px-2 text-[11px] text-white font-bold"
+                          >
+                            <option value="NEUTRAL">Neutral</option>
+                            <option value="UP">Bullish (Up)</option>
+                            <option value="DOWN">Bearish (Down)</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
 
                     <button
@@ -1621,6 +1808,53 @@ export default function AdminDashboard() {
           );
         })}
       </div>
+      {/* Custom Confirmation Modal */}
+      {confirmModal && confirmModal.show && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative text-center overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent"></div>
+            
+            <button 
+              onClick={() => setConfirmModal(null)}
+              className="absolute top-4 right-4 p-1 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-300 transition-all cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex justify-center mb-4">
+              <div className="p-4 bg-indigo-950 border border-indigo-900/50 rounded-2xl text-indigo-400">
+                <Shield className="w-8 h-8 stroke-[2.5]" />
+              </div>
+            </div>
+
+            <h3 className="text-lg font-black tracking-tight text-white uppercase mb-2">
+              {confirmModal.title}
+            </h3>
+            
+            <p className="text-xs text-slate-400 font-semibold mb-6 leading-relaxed px-2">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-3 bg-slate-950 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 text-slate-400 font-bold rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  confirmModal.onConfirm();
+                  setConfirmModal(null);
+                }}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 hover:border-indigo-400 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -76,6 +76,12 @@ export interface AdminConfig {
   silver_trend: 'UP' | 'DOWN' | 'NEUTRAL';
   payout_rate: number; // e.g. 0.85 (85% profit on win)
   house_protection_win_rate: number; // e.g. 0.45 (limit user win rate to 45% using defensive ticks)
+  gold_price_type: 'LIVE' | 'MANUAL';
+  gold_manual_price: number;
+  gold_price_offset: number;
+  silver_price_type: 'LIVE' | 'MANUAL';
+  silver_manual_price: number;
+  silver_price_offset: number;
 }
 
 export interface AdminGateway {
@@ -140,6 +146,12 @@ export const adminConfig: AdminConfig = {
   silver_trend: 'NEUTRAL',
   payout_rate: 0.85,
   house_protection_win_rate: 0.45,
+  gold_price_type: 'LIVE',
+  gold_manual_price: 2400.00,
+  gold_price_offset: 0.00,
+  silver_price_type: 'LIVE',
+  silver_manual_price: 30.00,
+  silver_price_offset: 0.00,
 };
 
 // Global Nudges for manual trend controls (avoids circular dependency)
@@ -742,7 +754,18 @@ export const query = async (text: string, params?: any[]): Promise<{ rows: any[]
 
   // Update admin configs (simulated)
   if (cleanSql.startsWith('UPDATE admin_config')) {
-    if (params && params.length >= 4) {
+    if (params && params.length >= 10) {
+      adminConfig.gold_trend = params[0];
+      adminConfig.silver_trend = params[1];
+      adminConfig.payout_rate = parseFloat(params[2]);
+      adminConfig.house_protection_win_rate = parseFloat(params[3]);
+      adminConfig.gold_price_type = params[4];
+      adminConfig.gold_manual_price = parseFloat(params[5]);
+      adminConfig.gold_price_offset = parseFloat(params[6]);
+      adminConfig.silver_price_type = params[7];
+      adminConfig.silver_manual_price = parseFloat(params[8]);
+      adminConfig.silver_price_offset = parseFloat(params[9]);
+    } else if (params && params.length >= 4) {
       adminConfig.gold_trend = params[0];
       adminConfig.silver_trend = params[1];
       adminConfig.payout_rate = parseFloat(params[2]);

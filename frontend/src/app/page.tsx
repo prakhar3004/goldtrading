@@ -56,6 +56,7 @@ export default function TradingDashboard() {
   const [authPhone, setAuthPhone] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Toast notifications state
   interface Toast {
@@ -212,6 +213,7 @@ export default function TradingDashboard() {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
     }
+    setLoadingAuth(false);
   }, []);
 
   // Fetch Private Portfolio & History Data once authenticated
@@ -723,6 +725,17 @@ export default function TradingDashboard() {
   // Filter list splits
   const activePredictions = predictionsList.filter(p => p.status === 'PENDING');
   const resolvedPredictions = predictionsList.filter(p => p.status !== 'PENDING');
+
+  if (loadingAuth) {
+    return (
+      <div className="h-[100dvh] flex flex-col items-center justify-center bg-slate-950 text-slate-100 font-sans antialiased">
+        <div className="flex flex-col items-center gap-3">
+          <Activity className="w-10 h-10 text-yellow-500 animate-pulse" />
+          <span className="text-xs text-slate-500 font-bold uppercase tracking-widest animate-pulse">KuberKhajana</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-[100dvh] flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white font-sans antialiased overflow-hidden">

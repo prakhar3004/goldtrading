@@ -135,13 +135,30 @@ router.get('/config', authMiddleware, adminMiddleware, async (_req: Authenticate
 
 // 5. UPDATE platform settings / configuration
 router.post('/config', authMiddleware, adminMiddleware, async (req: Request, res: Response) => {
-  const { goldTrend, silverTrend, payoutRate, houseProtectionWinRate } = req.body;
+  const { 
+    goldTrend, 
+    silverTrend, 
+    payoutRate, 
+    houseProtectionWinRate,
+    goldPriceType,
+    goldManualPrice,
+    goldPriceOffset,
+    silverPriceType,
+    silverManualPrice,
+    silverPriceOffset
+  } = req.body;
 
   if (goldTrend && !['UP', 'DOWN', 'NEUTRAL'].includes(goldTrend)) {
     return res.status(400).json({ error: 'Invalid gold trend. Must be UP, DOWN, or NEUTRAL.' });
   }
   if (silverTrend && !['UP', 'DOWN', 'NEUTRAL'].includes(silverTrend)) {
     return res.status(400).json({ error: 'Invalid silver trend. Must be UP, DOWN, or NEUTRAL.' });
+  }
+  if (goldPriceType && !['LIVE', 'MANUAL'].includes(goldPriceType)) {
+    return res.status(400).json({ error: 'Invalid gold price type. Must be LIVE or MANUAL.' });
+  }
+  if (silverPriceType && !['LIVE', 'MANUAL'].includes(silverPriceType)) {
+    return res.status(400).json({ error: 'Invalid silver price type. Must be LIVE or MANUAL.' });
   }
 
   const rate = parseFloat(payoutRate);
@@ -156,12 +173,18 @@ router.post('/config', authMiddleware, adminMiddleware, async (req: Request, res
 
   try {
     await pool.query(
-      'UPDATE admin_config SET gold_trend = $1, silver_trend = $2, payout_rate = $3, house_protection_win_rate = $4',
+      'UPDATE admin_config SET gold_trend = $1, silver_trend = $2, payout_rate = $3, house_protection_win_rate = $4, gold_price_type = $5, gold_manual_price = $6, gold_price_offset = $7, silver_price_type = $8, silver_manual_price = $9, silver_price_offset = $10',
       [
         goldTrend || adminConfig.gold_trend,
         silverTrend || adminConfig.silver_trend,
         !isNaN(rate) ? rate : adminConfig.payout_rate,
-        !isNaN(protectionRate) ? protectionRate : adminConfig.house_protection_win_rate
+        !isNaN(protectionRate) ? protectionRate : adminConfig.house_protection_win_rate,
+        goldPriceType || adminConfig.gold_price_type,
+        !isNaN(parseFloat(goldManualPrice)) ? parseFloat(goldManualPrice) : adminConfig.gold_manual_price,
+        !isNaN(parseFloat(goldPriceOffset)) ? parseFloat(goldPriceOffset) : adminConfig.gold_price_offset,
+        silverPriceType || adminConfig.silver_price_type,
+        !isNaN(parseFloat(silverManualPrice)) ? parseFloat(silverManualPrice) : adminConfig.silver_manual_price,
+        !isNaN(parseFloat(silverPriceOffset)) ? parseFloat(silverPriceOffset) : adminConfig.silver_price_offset
       ]
     );
 

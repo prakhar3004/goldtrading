@@ -237,20 +237,31 @@ const startCommodityRateEngine = () => {
     const silverItem = items.find(i => i.id === 2)!;
 
     // GOLD PRICE GENERATION
+    const goldBase = adminConfig.gold_price_type === 'MANUAL' 
+      ? (adminConfig.gold_manual_price || 2400.00) 
+      : latestGoldLivePrice;
+    const goldOffset = adminConfig.gold_price_offset || 0.00;
+    const goldTarget = goldBase + goldOffset;
+
     let newGoldPrice = goldItem.last_price;
     if (adminConfig.gold_trend === 'NEUTRAL') {
-      // Track live price with small random noise (-0.25 to 0.25)
       const noise = (Math.random() - 0.5) * 0.5;
-      newGoldPrice = parseFloat((latestGoldLivePrice + noise).toFixed(2));
+      newGoldPrice = goldTarget + noise;
     } else {
       // Skewed drift starting from current last_price
       let goldChange = (Math.random() - 0.5) * 1.5;
       if (adminConfig.gold_trend === 'UP') {
-        goldChange = (Math.random() - 0.25) * 1.8; // Skew positive
+        goldChange = (Math.random() - 0.2) * 1.8; // Skew positive
       } else if (adminConfig.gold_trend === 'DOWN') {
-        goldChange = (Math.random() - 0.75) * 1.8; // Skew negative
+        goldChange = (Math.random() - 0.8) * 1.8; // Skew negative
       }
-      newGoldPrice = parseFloat((goldItem.last_price + goldChange).toFixed(2));
+      newGoldPrice = goldItem.last_price + goldChange;
+      
+      // Proportional anchor pull back if it drifts too far
+      const deviation = newGoldPrice - goldTarget;
+      if (Math.abs(deviation) > 200) {
+        newGoldPrice -= deviation * 0.05;
+      }
     }
 
     // Apply admin manual nudge if any
@@ -261,19 +272,31 @@ const startCommodityRateEngine = () => {
     goldItem.last_price = parseFloat(newGoldPrice.toFixed(2));
 
     // SILVER PRICE GENERATION
+    const silverBase = adminConfig.silver_price_type === 'MANUAL'
+      ? (adminConfig.silver_manual_price || 30.00)
+      : latestSilverLivePrice;
+    const silverOffset = adminConfig.silver_price_offset || 0.00;
+    const silverTarget = silverBase + silverOffset;
+
     let newSilverPrice = silverItem.last_price;
     if (adminConfig.silver_trend === 'NEUTRAL') {
-      const noise = (Math.random() - 0.5) * 0.04; // fluctuation of ±$0.02
-      newSilverPrice = parseFloat((latestSilverLivePrice + noise).toFixed(2));
+      const noise = (Math.random() - 0.5) * 0.04;
+      newSilverPrice = silverTarget + noise;
     } else {
       // Skewed drift starting from current last_price
       let silverChange = (Math.random() - 0.5) * 0.08;
       if (adminConfig.silver_trend === 'UP') {
-        silverChange = (Math.random() - 0.25) * 0.1; // Skew positive
+        silverChange = (Math.random() - 0.2) * 0.1; // Skew positive
       } else if (adminConfig.silver_trend === 'DOWN') {
-        silverChange = (Math.random() - 0.75) * 0.1; // Skew negative
+        silverChange = (Math.random() - 0.8) * 0.1; // Skew negative
       }
-      newSilverPrice = parseFloat((silverItem.last_price + silverChange).toFixed(2));
+      newSilverPrice = silverItem.last_price + silverChange;
+
+      // Proportional anchor pull back if it drifts too far
+      const deviation = newSilverPrice - silverTarget;
+      if (Math.abs(deviation) > 5.0) {
+        newSilverPrice -= deviation * 0.05;
+      }
     }
 
     // Apply admin manual nudge if any
